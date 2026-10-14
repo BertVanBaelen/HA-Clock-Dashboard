@@ -4,6 +4,7 @@ coverage/
 *.log
 .env
 data/
+!android/app/src/**/data/
 *.db
 *.db-shm
 *.db-wal
