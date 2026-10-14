@@ -2,7 +2,7 @@
 # The version is bumped by the release workflow together with alarm_actions/config.yaml; the
 # Android app's versionName is read from here (android/app/build.gradle.kts).
 name: Alarm Actions App
-version: "0.1.2"
+version: "0.2.0"
 slug: alarm_actions_app
 description: Android app for Alarm Actions; while it runs the Alarms panel offers the download
 url: https://github.com/BertVanBaelen/HA-Clock-Dashboard
