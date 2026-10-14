@@ -1,5 +1,6 @@
 import { mdiAccount, mdiScriptTextOutline } from '@mdi/js';
 import type { PlannedAction } from '@alarm-actions/shared';
+import type { CSSProperties } from 'react';
 import { Icon } from './Icon';
 import { formatNext, t } from './strings';
 
@@ -17,8 +18,12 @@ export function PlannedList({ planned, timeZone }: Props) {
       <p className="muted small">{t.plannedHint}</p>
       <ul className="planned-list">
         {planned.map((p, i) => (
-          <li key={`${p.alarm_at}-${p.script_entity_id}-${i}`} className="planned-item">
-            <span className="script-icon">
+          <li
+            key={`${p.alarm_at}-${p.script_entity_id}-${i}`}
+            className="planned-item"
+            style={{ '--i': i } as CSSProperties}
+          >
+            <span className="script-icon round">
               <Icon path={p.icon_path ?? mdiScriptTextOutline} />
             </span>
             <span className="planned-main">

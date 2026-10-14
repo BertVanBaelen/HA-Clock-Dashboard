@@ -18,6 +18,7 @@ import { duplicateDraft, editDraft, emptyDraft, type Draft } from './draft';
 import { Icon } from './Icon';
 import { PlannedList } from './PlannedList';
 import { t } from './strings';
+import { useToast } from './Toast';
 
 type Tab = 'alarms' | 'app';
 
@@ -45,6 +46,7 @@ export function App() {
   const [tab, setTab] = useState<Tab>('alarms');
   const [editing, setEditing] = useState<Draft | null>(null);
   const loading = useRef(false);
+  const toast = useToast();
 
   const load = useCallback(async () => {
     if (loading.current) return;
@@ -129,7 +131,11 @@ export function App() {
             </button>
           </div>
         ) : (
-          <p className="muted">{t.loading}</p>
+          <div className="skeleton-list" aria-busy="true" aria-label={t.loading}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="skeleton" />
+            ))}
+          </div>
         )}
       </main>
     );
@@ -189,6 +195,7 @@ export function App() {
           scripts={scripts.list}
           onChanged={replaceAlarm}
           onReload={load}
+          onNotify={toast.notify}
           onOpen={(alarm) => openEditor(editDraft(alarm))}
           onDuplicate={(alarm) => openEditor(duplicateDraft(alarm))}
         />
@@ -196,7 +203,11 @@ export function App() {
       {activeTab === 'alarms' ? (
         <PlannedList planned={data.planned} timeZone={data.info.time_zone} />
       ) : null}
-      {activeTab === 'app' ? <AppTab /> : null}
+      {activeTab === 'app' ? (
+        <div className="tab-panel">
+          <AppTab />
+        </div>
+      ) : null}
 
       <footer className="footer muted small">{t.version(data.info.version)}</footer>
 
@@ -207,6 +218,7 @@ export function App() {
           data={data}
           scripts={scripts}
           onClose={() => setEditing(null)}
+          onNotify={toast.notify}
           onSaved={replaceAlarm}
           onDeleted={(id) => {
             removeAlarm(id);
@@ -225,6 +237,7 @@ export function App() {
           }}
         />
       ) : null}
+      {toast.element}
     </main>
   );
 }

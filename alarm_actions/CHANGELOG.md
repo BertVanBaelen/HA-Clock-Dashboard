@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2
+
+- Livelier panel: the editor opens as an animated popup (slides up on phones), deleting asks in a confirmation popup, short notifications confirm saving, deleting, switching on/off and skipping, the list animates in, and a loading placeholder replaces the "Loading…" text. Animations are turned off when the system asks for reduced motion.
+
 ## 0.1.0
 
 - First release: add-on skeleton, connection to Home Assistant Core, database with hot backup.

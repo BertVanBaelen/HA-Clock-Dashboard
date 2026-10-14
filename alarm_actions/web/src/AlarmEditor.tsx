@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   mdiAlertOutline,
   mdiClose,
@@ -31,8 +31,9 @@ import {
   type Draft,
   type DraftAction,
 } from './draft';
+import { ConfirmDialog } from './ConfirmDialog';
 import { Icon } from './Icon';
-import { dayName, t } from './strings';
+import { dayName, formatTime, t } from './strings';
 import { Switch } from './Switch';
 
 interface Props {
@@ -40,6 +41,7 @@ interface Props {
   data: Data;
   scripts: Scripts;
   onClose: () => void;
+  onNotify: (text: string) => void;
   onSaved: (alarm: Alarm) => void;
   onDeleted: (id: string) => void;
   onDuplicate: (draft: Draft) => void;
@@ -47,6 +49,9 @@ interface Props {
 }
 
 type Problem = { kind: 'conflict' | 'error'; text: string } | null;
+
+/** Matches the dialog leave animation in styles.css. */
+const CLOSE_MS = 180;
 
 function parseNumber(value: string): number | null {
   if (value.trim() === '') return null;
@@ -59,6 +64,7 @@ export function AlarmEditor({
   data,
   scripts: scriptState,
   onClose,
+  onNotify,
   onSaved,
   onDeleted,
   onDuplicate,
@@ -73,6 +79,16 @@ export function AlarmEditor({
   const [runResult, setRunResult] = useState<Record<string, string>>({});
   const [now, setNow] = useState(() => Date.now());
   const [touched, setTouched] = useState(false);
+  const [closing, setClosing] = useState(false);
+
+  // Play the leave animation before the parent unmounts the dialog.
+  const close = useCallback(
+    (then: () => void = onClose) => {
+      setClosing(true);
+      window.setTimeout(then, CLOSE_MS);
+    },
+    [onClose],
+  );
 
   // Keep the "before" warning current while the dialog stays open.
   useEffect(() => {
@@ -82,11 +98,11 @@ export function AlarmEditor({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') close();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [close]);
 
   // Scripts load in the background; until then the current choices show as their entity ids.
   const scriptsLoaded = scriptState.list !== null;
@@ -131,13 +147,14 @@ export function AlarmEditor({
         body: draftBody(draft),
       });
       onSaved(res.alarm);
+      onNotify(isNew ? t.alarmCreated(formatTime(res.alarm.time)) : t.alarmSaved);
       if (res.warnings.length > 0) {
         const fresh = draftFromAlarm(res.alarm);
         setDraft(fresh);
         setBase(fresh);
         setWarnings(res.warnings);
       } else {
-        onClose();
+        close();
       }
     } catch (err) {
       handleError(err);
@@ -152,7 +169,10 @@ export function AlarmEditor({
     setProblem(null);
     try {
       await api(`alarms/${draft.id}`, { method: 'DELETE' });
-      onDeleted(draft.id);
+      const id = draft.id;
+      setConfirmDelete(false);
+      onNotify(t.alarmDeleted);
+      close(() => onDeleted(id));
     } catch (err) {
       handleError(err);
       setConfirmDelete(false);
@@ -187,10 +207,18 @@ export function AlarmEditor({
     );
 
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div
+      className={closing ? 'overlay closing' : 'overlay'}
+      onMouseDown={(e) => e.target === e.currentTarget && close()}
+    >
       <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="editor-title">
         <header className="dialog-header">
-          <button type="button" className="icon-button" aria-label={t.close} onClick={onClose}>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={t.close}
+            onClick={() => close()}
+          >
             <Icon path={mdiClose} />
           </button>
           <h2 id="editor-title">{title}</h2>
@@ -456,41 +484,34 @@ export function AlarmEditor({
 
           {!isNew ? (
             <section className="danger-zone">
-              {confirmDelete ? (
-                <div className="confirm">
-                  <span>{t.confirmDelete}</span>
-                  <button
-                    type="button"
-                    className="danger"
-                    disabled={saving}
-                    onClick={() => void remove()}
-                  >
-                    {t.yesDelete}
-                  </button>
-                  <button type="button" onClick={() => setConfirmDelete(false)}>
-                    {t.cancel}
-                  </button>
-                </div>
-              ) : (
-                <div className="confirm">
-                  <button
-                    type="button"
-                    className="danger-outline"
-                    onClick={() => setConfirmDelete(true)}
-                  >
-                    <Icon path={mdiDelete} size={20} />
-                    <span>{t.delete}</span>
-                  </button>
-                  <button type="button" onClick={() => onDuplicate(copyDraft(base))}>
-                    <Icon path={mdiContentCopy} size={20} />
-                    <span>{t.duplicate}</span>
-                  </button>
-                </div>
-              )}
+              <div className="confirm">
+                <button
+                  type="button"
+                  className="danger-outline"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  <Icon path={mdiDelete} size={20} />
+                  <span>{t.delete}</span>
+                </button>
+                <button type="button" onClick={() => onDuplicate(copyDraft(base))}>
+                  <Icon path={mdiContentCopy} size={20} />
+                  <span>{t.duplicate}</span>
+                </button>
+              </div>
             </section>
           ) : null}
         </div>
       </div>
+      {confirmDelete ? (
+        <ConfirmDialog
+          title={t.confirmDelete}
+          text={t.deleteHint}
+          confirmLabel={t.yesDelete}
+          busy={saving}
+          onConfirm={() => void remove()}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      ) : null}
     </div>
   );
 }

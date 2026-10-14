@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { mdiContentCopy, mdiPencil, mdiSkipNext, mdiUndo, mdiAlertCircleOutline } from '@mdi/js';
 import type { ActionDefinition, Alarm } from '@alarm-actions/shared';
 import { ApiError, api, errorMessage } from './api';
@@ -14,6 +14,7 @@ interface Props {
   scripts: ActionDefinition[] | null;
   onChanged: (alarm: Alarm) => void;
   onReload: () => Promise<void>;
+  onNotify: (text: string) => void;
   onOpen: (alarm: Alarm) => void;
   onDuplicate: (alarm: Alarm) => void;
 }
@@ -22,7 +23,15 @@ function sortKey(a: Alarm): string {
   return `${a.time}|${a.label}`;
 }
 
-export function AlarmList({ data, scripts, onChanged, onReload, onOpen, onDuplicate }: Props) {
+export function AlarmList({
+  data,
+  scripts,
+  onChanged,
+  onReload,
+  onNotify,
+  onOpen,
+  onDuplicate,
+}: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; reload: boolean } | null>(null);
 
@@ -30,11 +39,12 @@ export function AlarmList({ data, scripts, onChanged, onReload, onOpen, onDuplic
 
   const byKey = (x: Alarm, y: Alarm) => sortKey(x).localeCompare(sortKey(y));
 
-  const run = async (alarm: Alarm, request: () => Promise<Alarm>) => {
+  const run = async (alarm: Alarm, request: () => Promise<Alarm>, done: string) => {
     setBusy(alarm.id);
     setMessage(null);
     try {
       onChanged(await request());
+      onNotify(done);
     } catch (err) {
       const conflict = err instanceof ApiError && (err.status === 409 || err.status === 404);
       setMessage({
@@ -48,26 +58,39 @@ export function AlarmList({ data, scripts, onChanged, onReload, onOpen, onDuplic
   };
 
   const toggle = (alarm: Alarm, enabled: boolean) =>
-    run(alarm, async () => {
-      const res = await api<{ alarm: Alarm }>(`alarms/${alarm.id}`, {
-        method: 'PUT',
-        body: toggleBody(alarm, enabled),
-      });
-      return res.alarm;
-    });
-
-  const skip = (alarm: Alarm) =>
-    run(alarm, () =>
-      api<Alarm>(`alarms/${alarm.id}/${alarm.skip_next ? 'unskip' : 'skip'}`, { method: 'POST' }),
+    run(
+      alarm,
+      async () => {
+        const res = await api<{ alarm: Alarm }>(`alarms/${alarm.id}`, {
+          method: 'PUT',
+          body: toggleBody(alarm, enabled),
+        });
+        return res.alarm;
+      },
+      enabled ? t.alarmOn(formatTime(alarm.time)) : t.alarmOff(formatTime(alarm.time)),
     );
 
-  const renderItem = (alarm: Alarm) => {
+  const skip = (alarm: Alarm) =>
+    run(
+      alarm,
+      () =>
+        api<Alarm>(`alarms/${alarm.id}/${alarm.skip_next ? 'unskip' : 'skip'}`, {
+          method: 'POST',
+        }),
+      alarm.skip_next ? t.skipUndone : t.skipped,
+    );
+
+  const renderItem = (alarm: Alarm, index: number) => {
     const known = scripts ? new Set(scripts.map((a) => a.entity_id)) : null;
     const broken = known !== null && alarm.actions.some((a) => !known.has(a.script_entity_id));
     const repeating = alarm.repeat_days.length > 0;
     const disabled = busy === alarm.id;
     return (
-      <li key={alarm.id} className={alarm.enabled ? 'alarm' : 'alarm off'}>
+      <li
+        key={alarm.id}
+        className={alarm.enabled ? 'alarm' : 'alarm off'}
+        style={{ '--i': index } as CSSProperties}
+      >
         <button type="button" className="alarm-main" onClick={() => onOpen(alarm)}>
           <span className="alarm-time">{formatTime(alarm.time)}</span>
           <span className="alarm-meta">
