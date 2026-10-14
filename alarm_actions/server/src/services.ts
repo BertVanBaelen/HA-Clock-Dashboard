@@ -10,6 +10,7 @@ import { HistoryStore } from './history.js';
 import { Scheduler } from './scheduler.js';
 import { AlarmStore } from './store.js';
 import { AppProbe } from './appProbe.js';
+import { CoreTargetResolver } from './coreTarget.js';
 import { ClientStore } from './clients.js';
 import { TokenValidator } from './tokenAuth.js';
 
@@ -75,7 +76,17 @@ export function createServices(
     now,
   });
   const appProbe = new AppProbe(config.appUrl, log, now);
-  const tokens = new TokenValidator({ url: config.haCoreWsUrl, log, now });
+  const core = new CoreTargetResolver({
+    fixedUrl: config.haCoreWsUrl,
+    supervisorToken: config.supervisorToken,
+    log,
+  });
+  const tokens = new TokenValidator({
+    target: () => core.get(),
+    onUnreachable: () => core.invalidate(),
+    log,
+    now,
+  });
   return {
     config,
     db,

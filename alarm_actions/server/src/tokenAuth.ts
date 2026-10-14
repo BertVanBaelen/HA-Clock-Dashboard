@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import WebSocket from 'ws';
 import type { FastifyBaseLogger } from 'fastify';
 import { HttpError, tooManyRequests, unavailable } from './errors.js';
+import type { CoreTarget } from './coreTarget.js';
 
 const CACHE_MS = 60_000;
 const CACHE_MAX = 1000;
@@ -20,8 +21,10 @@ export const bearerRequired = () =>
   );
 
 export interface TokenValidatorOptions {
-  /** Core websocket URL (`ws://homeassistant:8123/api/websocket`). */
-  url: string;
+  /** Core's websocket API; looked up per validation so a changed port is picked up. */
+  target: () => Promise<CoreTarget>;
+  /** Called when Core could not be reached, so the target is looked up again next time. */
+  onUnreachable?: () => void;
   log: FastifyBaseLogger;
   now: () => number;
   timeoutMs?: number;
@@ -94,10 +97,23 @@ export class TokenValidator {
   }
 
   /** One short websocket session: auth, `auth/current_user`, close. */
-  private ask(token: string): Promise<string | null> {
+  private async ask(token: string): Promise<string | null> {
+    const target = await this.opts.target();
+    try {
+      return await this.session(token, target);
+    } catch (err) {
+      this.opts.onUnreachable?.();
+      throw err;
+    }
+  }
+
+  private session(token: string, target: CoreTarget): Promise<string | null> {
     return new Promise((resolve, reject) => {
       let settled = false;
-      const ws = new WebSocket(this.opts.url, { handshakeTimeout: this.opts.timeoutMs ?? TIMEOUT_MS });
+      const ws = new WebSocket(target.url, {
+        handshakeTimeout: this.opts.timeoutMs ?? TIMEOUT_MS,
+        rejectUnauthorized: !target.tlsInsecure,
+      });
       const finish = (err: Error | null, userId: string | null = null) => {
         if (settled) return;
         settled = true;

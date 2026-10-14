@@ -20,6 +20,8 @@ panel_icon: mdi:alarm
 panel_title: Alarms
 panel_admin: false
 homeassistant_api: true
+# Supervisor API, only to read Core's port and SSL setting (GET /core/info) for app token checks.
+hassio_api: true
 # Optional external API for the Android app (phase 6); not mapped on the host by default.
 ports:
   8100/tcp: null

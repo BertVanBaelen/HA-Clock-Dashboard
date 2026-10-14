@@ -25,7 +25,8 @@ export interface AppConfig {
    * Core websocket reached directly (not through the Supervisor proxy, which only accepts the
    * Supervisor token); used to validate the app's bearer tokens (TR-API-12).
    */
-  haCoreWsUrl: string;
+  /** Fixed Core websocket URL for token checks; null asks the Supervisor for Core's port. */
+  haCoreWsUrl: string | null;
   externalPort: number;
   /** Supervisor token; null when running outside Home Assistant (development). */
   supervisorToken: string | null;
@@ -126,7 +127,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     host: env.HOST || '0.0.0.0',
     trustedProxy: env.TRUSTED_PROXY || INGRESS_PROXY_IP,
     haWsUrl: env.HA_WS_URL || 'ws://supervisor/core/websocket',
-    haCoreWsUrl: env.HA_CORE_WS_URL || 'ws://homeassistant:8123/api/websocket',
+    haCoreWsUrl: env.HA_CORE_WS_URL || null,
     externalPort: Number(env.EXTERNAL_PORT || EXTERNAL_PORT),
     supervisorToken: env.SUPERVISOR_TOKEN || null,
     webDistDir: env.WEB_DIST_DIR ? path.resolve(env.WEB_DIST_DIR) : defaultWebDistDir(),

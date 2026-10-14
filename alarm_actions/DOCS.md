@@ -96,9 +96,9 @@ Home Assistant (the result is cached for a minute). Failed checks are rate limit
 - Home Assistant's own `ip_ban` counts failed logins per source address. Token checks come from
   this add-on's address, so many made-up tokens could ban it; the add-on's rate limit keeps that
   unlikely. If it happens, remove the add-on's address from `ip_bans.yaml`.
-- Token checks connect to `ws://homeassistant:8123`. Home Assistant with its own certificate
-  (`ssl_certificate` in the `http:` configuration) is not supported yet; use a reverse proxy or the
-  Cloudflare tunnel for https instead.
+- Token checks connect to Home Assistant directly on the internal network. The add-on asks the
+  Supervisor for Home Assistant's port and whether it uses its own certificate (`ssl_certificate`),
+  so a port other than 8123 and SSL both work.
 - **Your phones** in the panel lists the phones with the app and when they last synced. Removing a
   phone there does not log it out; revoke its token in your Home Assistant profile
   (*Security → Refresh tokens*) for that.
