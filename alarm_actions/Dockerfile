@@ -40,4 +40,7 @@ COPY docker/alarm-actions-backup /usr/local/bin/alarm-actions-backup
 RUN chmod +x /usr/local/bin/alarm-actions-backup
 
 EXPOSE 8099
+# TCP check only: every HTTP route requires an ingress identity and would answer 401.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD ["node", "-e", "require('net').connect(8099,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
 CMD ["node", "server/dist/index.js"]
