@@ -12,5 +12,6 @@ Depends on A2 and A3.
 | A4.4 | Warning when a *before* action will be skipped | AFR-ALM-03 | Warning shown before save |
 | A4.5 | Report dismissed/snoozed/timed-out with occurrence ids; offline queue with retry | AFR-SYN-03, ATR-SYN-01 | Server runs the "after dismissal" action after a real dismissal |
 | A4.6 | Offline edit queue and conflict screen | AFR-SYN-02 | *Should have* |
+| A4.7 | Night display (bedside clock, next alarm, dimmed, optional auto-start while charging) | AFR-NGT-01, ATR-NGT-01 | *Should have*; a ringing alarm takes over the screen |
 
 **Exit criteria:** dismissing the alarm on the phone starts the "after dismissal" script in Home Assistant, also when the phone had no network at the moment of dismissal.

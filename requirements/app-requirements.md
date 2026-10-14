@@ -26,9 +26,10 @@ Priority: **M** must (v1), **S** should, **C** could.
 | AFR-SYN-04 | The app shows the sync state ("last synced", "offline") so the user knows alarms are current | M |
 | AFR-SET-01 | A first-run guide requests the needed permissions: exact alarms, full-screen intent, notifications, battery optimisation exemption | M |
 | AFR-SET-02 | The app shows a clear message when the dashboard is too old or too new for the app (API version check) | M |
-| AFR-SET-03 | The app checks `GET /app/info` for a newer APK in the app add-on and offers to open the download | S |
+| AFR-SET-03 | **In-app update (D33):** the app checks `GET /app/info` on every sync and, when a newer APK is in the app add-on, shows "Update available". One tap downloads and installs it over the existing app; alarms, login and settings are kept, no uninstall needed | M |
 | AFR-SET-04 | A health check screen tells the user if something would stop the alarm from ringing (permission missing, battery restriction, DND channel blocked) | S |
-| AFR-SET-05 | The install guide explains allowing "Install unknown apps" for the browser, needed for the first install and every update of a sideloaded APK | M |
+| AFR-SET-05 | The install guide explains allowing "Install unknown apps": once for the browser (first install) and once for the app itself (in-app updates) | M |
+| AFR-NGT-01 | **Night display (D34):** a bedside clock mode with a large dimmed clock and the next alarm, keeping the screen on. Started manually or, optionally, automatically while charging during a set time window. A ringing alarm takes over the screen | S |
 
 ## 2. Technical requirements
 | ID | Requirement |
@@ -52,6 +53,8 @@ Priority: **M** must (v1), **S** should, **C** could.
 | ATR-REL-01 | CI builds a release APK on tags, signs it with a keystore from GitHub secrets, and copies it into the app add-on image (TR-APP-02) |
 | ATR-REL-02 | The keystore is backed up outside GitHub; losing it means users must uninstall to update |
 | ATR-REL-03 | `versionCode` increases on every release; `versionName` matches the add-on version |
+| ATR-REL-04 | In-app updater: downloads `GET /app/apk` through the ingress session, checks the SHA-256 from `GET /app/info`, and installs with a `PackageInstaller` session (`REQUEST_INSTALL_PACKAGES`). Android itself rejects an APK with a different signing key or a lower `versionCode`. On Android 12+ the session requests `USER_ACTION_NOT_REQUIRED`; when Android still asks, the user confirms with one tap. No update starts while an alarm rings or within 30 minutes before the next alarm; after the update, alarms are rescheduled (ATR-RNG-04) |
+| ATR-NGT-01 | Night display: a Compose screen with `FLAG_KEEP_SCREEN_ON`, low window brightness and a dark theme, reading only from Room (works offline). The clock shifts position slightly every few minutes to avoid burn-in. Auto-start uses the charging state and the user's time window |
 | ATR-QLT-01 | Unit tests for the alarm schedule calculation (DST, weekdays, skip) and sync merge logic; instrumented tests for the ringing flow where feasible |
 | ATR-QLT-02 | A manual device test list covers several Android versions and manufacturers known for aggressive battery management |
 
@@ -65,6 +68,7 @@ Priority: **M** must (v1), **S** should, **C** could.
 | ASEC-05 | Local alarm data is excluded from cloud backups, or backups are disabled for the app |
 | ASEC-06 | Tokens are deleted on logout; a revoked token ends sync but alarms already stored keep ringing until the user logs out |
 | ASEC-07 | The signing keystore is a CI secret and is never committed |
+| ASEC-08 | Updates are only downloaded from the user's own HA (through ingress, HTTPS) and installed only when the checksum matches; the Android signature check prevents installing an APK from another signer |
 
 ## 4. Out of scope (v1)
 iOS app, Play Store release, creating new scripts from the app, Wear OS, widgets, sleep tracking, push-based instant sync, notifications for failed actions.

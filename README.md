@@ -8,7 +8,7 @@ A Home Assistant **add-on repository** that adds an **alarm planner** to your si
 - Sidebar panel "Alarms" to create and manage alarms (time, label, days, on/off, skip next), for every HA user
 - Per alarm, attach **actions** (HA scripts labeled `alarm_action`) with a timing: X minutes before, at alarm time, X minutes after, or after dismissal
 - Scheduling runs **inside Home Assistant** (in the add-on), so actions fire even if no phone is online
-- Optional second add-on that offers the **Android app**: an extra **Install app** tab appears in the panel. The app has the same alarm management plus a full-screen alarm that rings through Do Not Disturb
+- Optional second add-on that offers the **Android app**: an extra **Install app** tab appears in the panel. The app has the same alarm management plus a full-screen alarm that rings through Do Not Disturb and a night display (bedside clock). The app updates itself from the add-on; no reinstall needed
 - Works without the app: the dashboard is fully usable on its own
 - **Away detection:** when your phone is in another time zone, it rings at local time and Home Assistant pauses your actions
 
