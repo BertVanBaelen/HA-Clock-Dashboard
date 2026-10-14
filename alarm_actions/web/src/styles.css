@@ -856,6 +856,53 @@ button:focus-visible {
   animation: fade-in 0.4s ease-out;
 }
 
+/* Install app */
+a.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 14px;
+  border: 1px solid var(--primary-color);
+  border-radius: 18px;
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+a.button.primary {
+  background: var(--primary-color);
+  color: var(--text-primary-color);
+  font-weight: 500;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.steps p {
+  margin: 4px 0 8px;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.urls {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 8px 0 0;
+}
+
+.urls dd {
+  margin: 0;
+}
+
 /* Animations */
 @keyframes fade-in {
   from {

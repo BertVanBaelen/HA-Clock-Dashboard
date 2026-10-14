@@ -98,7 +98,29 @@ const en = {
     'Install the companion app on your phone so alarms ring even without a network connection.',
   appUnavailable: 'The app is not available right now.',
   appVersion: (v: string) => `Available version: ${v}`,
-  appComing: 'Download and setup instructions follow in a later version.',
+  appStepDownload: 'Download the app on this phone.',
+  appDownload: 'Download app',
+  appChecksum: 'Checksum to verify the download',
+  appStepInstall:
+    'Open the downloaded file and install it. Android asks once to allow installing apps from your browser or the Home Assistant app.',
+  appStepSetup: 'Open the app and set it up with this link, then log in with your Home Assistant account.',
+  appOpenSetup: 'Set up the app',
+  appManual: 'Or enter these addresses in the app yourself:',
+  appHaUrl: 'Home Assistant',
+  appApiUrl: 'Alarm API',
+  appNotConfigured:
+    'The app cannot be set up yet: an administrator has to set the external URL of Home Assistant (https) and "external_api_url" in the add-on configuration.',
+  dismiss: 'Dismiss',
+  dismissEarly: 'Dismiss early',
+  dismissedToast: 'Alarm dismissed',
+  dismissedAt: (when: string) => `Dismissed: ${when}`,
+  awayBanner:
+    'You are away: your phone is in another time zone, so the actions of your alarms are skipped. The alarms on your phone still ring.',
+  phones: 'Your phones',
+  phonesHint: 'Phones with the app. Removing one here does not log it out.',
+  lastSync: (when: string) => `Last sync ${when}`,
+  removePhone: 'Remove phone',
+  awayBadge: (tz: string) => `Away (${tz})`,
   version: (v: string) => `Alarm Actions ${v}`,
 };
 
@@ -197,7 +219,29 @@ const nl: Strings = {
   appIntro: 'Installeer de app op je telefoon zodat wekkers ook zonder netwerkverbinding afgaan.',
   appUnavailable: 'De app is nu niet beschikbaar.',
   appVersion: (v: string) => `Beschikbare versie: ${v}`,
-  appComing: 'Downloaden en instellen volgen in een latere versie.',
+  appStepDownload: 'Download de app op deze telefoon.',
+  appDownload: 'App downloaden',
+  appChecksum: 'Controlegetal om de download na te kijken',
+  appStepInstall:
+    'Open het gedownloade bestand en installeer het. Android vraagt één keer om apps installeren toe te staan vanuit je browser of de Home Assistant-app.',
+  appStepSetup: 'Open de app en stel ze in met deze link, en log daarna in met je Home Assistant-account.',
+  appOpenSetup: 'App instellen',
+  appManual: 'Of geef deze adressen zelf in de app in:',
+  appHaUrl: 'Home Assistant',
+  appApiUrl: 'Wekker-API',
+  appNotConfigured:
+    'De app kan nog niet ingesteld worden: een beheerder moet de externe URL van Home Assistant (https) en "external_api_url" in de add-on-configuratie instellen.',
+  dismiss: 'Uitzetten',
+  dismissEarly: 'Vroeg uitzetten',
+  dismissedToast: 'Wekker uitgezet',
+  dismissedAt: (when: string) => `Uitgezet: ${when}`,
+  awayBanner:
+    'Je bent weg: je telefoon staat in een andere tijdzone, dus de acties van je wekkers worden overgeslagen. De wekkers op je telefoon gaan wel af.',
+  phones: 'Je telefoons',
+  phonesHint: 'Telefoons met de app. Hier verwijderen meldt de telefoon niet af.',
+  lastSync: (when: string) => `Laatst gesynchroniseerd ${when}`,
+  removePhone: 'Telefoon verwijderen',
+  awayBadge: (tz: string) => `Weg (${tz})`,
   version: (v: string) => `Alarm Actions ${v}`,
 };
 
@@ -235,6 +279,22 @@ export function formatTime(time: string): string {
     minute: '2-digit',
     timeZone: 'UTC',
   }).format(new Date(Date.UTC(2024, 0, 1, h, m)));
+}
+
+/** A past or future moment with its date, for example "14 Oct, 12:30". */
+export function formatDateTime(iso: string, timeZone: string | null): string {
+  const date = new Date(iso);
+  try {
+    return new Intl.DateTimeFormat(locale(), {
+      day: 'numeric',
+      month: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+      ...(timeZone ? { timeZone } : {}),
+    }).format(date);
+  } catch {
+    return date.toLocaleString();
+  }
 }
 
 /** Next trigger in HA's time zone, for example "Tue 07:00". */

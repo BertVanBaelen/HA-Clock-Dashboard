@@ -649,19 +649,19 @@ describe('app add-on probe (TR-APP-03)', () => {
         return;
       }
       res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ version: '1.2.0' }));
+      res.end(JSON.stringify({ version: '1.2.0', version_code: 1002000, sha256: 'a'.repeat(64), size: 10 }));
     });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     try {
       let t = NOW;
       const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
       const probe = new AppProbe(url, createLogger('silent'), () => t);
-      expect(await probe.info()).toEqual({ available: true, version: '1.2.0' });
+      expect(await probe.info()).toEqual({ available: true, version: '1.2.0', version_code: 1002000, sha256: 'a'.repeat(64), size: 10 });
       up = false;
-      expect(await probe.info()).toEqual({ available: true, version: '1.2.0' });
+      expect(await probe.info()).toEqual({ available: true, version: '1.2.0', version_code: 1002000, sha256: 'a'.repeat(64), size: 10 });
       expect(hits).toBe(1);
       t += 31_000;
-      expect(await probe.info()).toEqual({ available: false, version: null });
+      expect(await probe.info()).toEqual({ available: false, version: null, version_code: null, sha256: null, size: null });
     } finally {
       server.close();
     }
@@ -684,20 +684,31 @@ describe('app add-on probe (TR-APP-03)', () => {
   });
 
   it('reports unavailable without a URL or when nothing listens', async () => {
-    expect(await new AppProbe(null, createLogger('silent')).info()).toEqual({
-      available: false,
-      version: null,
-    });
+    expect(await new AppProbe(null, createLogger('silent')).info()).toEqual({ available: false, version: null, version_code: null, sha256: null, size: null });
     const probe = new AppProbe('http://127.0.0.1:1', createLogger('silent'));
-    expect(await probe.info()).toEqual({ available: false, version: null });
+    expect(await probe.info()).toEqual({ available: false, version: null, version_code: null, sha256: null, size: null });
   });
 
   it('serves /app/info and info.app_available to logged-in users only', async () => {
     harness = await startHarness({ now: () => NOW });
-    harness.services.appProbe.info = async () => ({ available: true, version: '1.0.0' });
+    harness.services.appProbe.info = async () => ({
+      available: true,
+      version: '1.0.0',
+      version_code: 1000000,
+      sha256: 'b'.repeat(64),
+      size: 5,
+    });
     harness.services.appProbe.peek = () => true;
     const res = await harness.request('user-a', 'GET', '/api/v1/app/info');
-    expect(res.json()).toEqual({ available: true, version: '1.0.0' });
+    expect(res.json()).toEqual({
+      available: true,
+      version: '1.0.0',
+      version_code: 1000000,
+      sha256: 'b'.repeat(64),
+      size: 5,
+      ha_url: 'https://home.example.com',
+      api_url: null,
+    });
     const info = await harness.request('user-a', 'GET', '/api/v1/info');
     expect(info.json()).toMatchObject({ app_available: true });
     expect((await harness.request(null, 'GET', '/api/v1/app/info')).statusCode).toBe(401);

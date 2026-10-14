@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { loadConfig } from './config.js';
+import { externalBasePath, loadConfig } from './config.js';
 import { DB_FILE, openDatabase } from './db.js';
 import { restoreFromSnapshot } from './snapshot.js';
 import { createLogger } from './logger.js';
@@ -16,6 +16,15 @@ async function main(): Promise<void> {
   const db = openDatabase(path.join(config.dataDir, DB_FILE));
   const services = createServices(config, db, log);
   const app = await buildApp(services);
+  const externalUrl = config.settings.external_api_url;
+  let external: Awaited<ReturnType<typeof buildApp>> | null = null;
+  if (externalUrl) {
+    try {
+      external = await buildApp(services, { mode: 'external', basePath: externalBasePath(externalUrl) });
+    } catch (err) {
+      log.error({ err: (err as Error).message }, 'External API not started: invalid external_api_url');
+    }
+  }
 
   let stopping = false;
   const shutdown = async (signal: string) => {
@@ -24,6 +33,7 @@ async function main(): Promise<void> {
     log.info(`${signal} received, stopping`);
     try {
       await app.close();
+      await external?.close();
       await stopServices(services);
     } finally {
       db.close();
@@ -34,6 +44,10 @@ async function main(): Promise<void> {
   process.on('SIGINT', () => void shutdown('SIGINT'));
 
   await app.listen({ port: config.port, host: config.host });
+  if (external) {
+    await external.listen({ port: config.externalPort, host: config.host });
+    log.info(`External API listening on port ${config.externalPort} for ${externalUrl}`);
+  }
   startServices(services);
   log.info(`Alarm Actions ${APP_VERSION} listening on port ${config.port}`);
 }

@@ -5,8 +5,10 @@ import {
   alarmCreateSchema,
   alarmUpdateSchema,
   emptyBodySchema,
-  nextOccurrence,
+  occurrenceEventSchema,
   plannedRunAt,
+  type OccurrenceEventResponse,
+  type OccurrenceEventType,
   type Alarm,
   type AlarmActionInput,
   type AlarmAction,
@@ -27,9 +29,7 @@ const iso = (ms: number) => new Date(ms).toISOString();
 
 /** Next time the alarm rings, null when disabled or the HA time zone is not known yet. */
 export function nextOccurrenceOf(svc: Services, alarm: StoredAlarm): number | null {
-  const tz = svc.directory.timeZone;
-  if (!alarm.enabled || !tz) return null;
-  return nextOccurrence(alarm, tz, svc.now());
+  return svc.scheduler.nextRing(alarm);
 }
 
 /** Stored alarm to API shape. */
@@ -52,6 +52,7 @@ export function toApiAlarm(svc: Services, alarm: StoredAlarm): Alarm {
     updated_at: iso(alarm.updated_at),
     next_occurrence: next === null ? null : iso(next),
     disabled_reason: alarm.disabled_reason,
+    current_occurrence: svc.scheduler.currentOccurrence(alarm),
   };
 }
 
@@ -213,6 +214,27 @@ export function alarmRoutes(app: FastifyInstance): void {
 
   app.post<{ Params: { id: string } }>('/alarms/:id/skip', (req) => setSkip(req, true));
   app.post<{ Params: { id: string } }>('/alarms/:id/unskip', (req) => setSkip(req, false));
+
+  // Occurrence reports (FR-EVT-01..03, SEC-06): owner only; from the panel (manual dismiss) on
+  // the ingress listener, from the phone on the external one.
+  const source = app.apiMode === 'external' ? 'app' : 'panel';
+  for (const type of ['dismissed', 'snoozed', 'timed_out'] as const satisfies OccurrenceEventType[]) {
+    app.post<{ Params: { id: string; occurrenceId: string } }>(
+      `/alarms/:id/occurrences/:occurrenceId/${type}`,
+      async (req): Promise<OccurrenceEventResponse> => {
+        const user = currentUser(req);
+        const alarm = authorizeAlarm(user, load(req.params.id));
+        const body = parseBody(occurrenceEventSchema, req.body);
+        const occurrenceId = req.params.occurrenceId;
+        if (occurrenceId.length > 100) throw notFound('Occurrence');
+        return svc.scheduler.report(alarm, occurrenceId.replace(/^[^_]*/, (p) => p.toLowerCase()), type, {
+          occurredAt: body?.occurred_at === undefined ? undefined : Date.parse(body.occurred_at),
+          source,
+          userId: user.id,
+        });
+      },
+    );
+  }
 
   // "Run now" (FR-EXE-08): same executor and limits as scheduled runs; owner only.
   app.post<{ Params: { id: string; actionId: string } }>(

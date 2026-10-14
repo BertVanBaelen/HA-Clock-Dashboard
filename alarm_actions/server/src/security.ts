@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { StoredAlarm } from './store.js';
 import type { HaUser } from './ha/users.js';
 import { notFound, tooManyRequests, unauthorized, unavailable } from './errors.js';
+import { bearerRequired } from './tokenAuth.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -37,14 +38,15 @@ export function ingressUserId(req: FastifyRequest, trustedProxy: string): string
  */
 export function installIdentity(app: FastifyInstance): void {
   const svc = app.svc;
+  const external = app.apiMode === 'external';
   const windows = new Map<string, { start: number; count: number }>();
 
   app.decorateRequest('haUser', null);
   app.addHook('onRequest', async (req) => {
-    const userId = ingressUserId(req, svc.config.trustedProxy);
+    const userId = external ? await bearerUserId(req) : ingressUserId(req, svc.config.trustedProxy);
     const user = await svc.users.resolve(userId);
     if (user === null) throw unavailable('Home Assistant is not reachable yet. Try again shortly.');
-    if (!user || !user.isActive) throw unauthorized();
+    if (!user || !user.isActive) throw external ? bearerRequired() : unauthorized();
 
     const now = svc.now();
     let window = windows.get(user.id);
@@ -58,6 +60,34 @@ export function installIdentity(app: FastifyInstance): void {
     }
     req.haUser = user;
   });
+}
+
+/**
+ * Client address on the external listener, for rate limiting only. Requests arrive through the
+ * Cloudflare tunnel, which sets `CF-Connecting-IP`; the listener is not published on the host.
+ */
+export function externalAddress(req: FastifyRequest): string {
+  const cf = req.headers['cf-connecting-ip'];
+  if (typeof cf === 'string' && cf.length <= 64) return cf.trim();
+  const xff = req.headers['x-forwarded-for'];
+  if (typeof xff === 'string') {
+    const first = xff.split(',')[0]?.trim();
+    if (first && first.length <= 64) return first;
+  }
+  return clientAddress(req.ip);
+}
+
+/**
+ * Bearer identity on the external listener (TR-API-12): the HA access token is checked with Core.
+ * `X-Remote-User-*` headers are ignored here; only the token counts.
+ */
+async function bearerUserId(req: FastifyRequest): Promise<string> {
+  const header = req.headers.authorization;
+  const match = typeof header === 'string' ? /^Bearer +([\x21-\x7e]{1,4096})$/i.exec(header) : null;
+  if (!match) throw bearerRequired();
+  const userId = await req.server.svc.tokens.validate(match[1]!, externalAddress(req));
+  if (!userId) throw bearerRequired();
+  return userId;
 }
 
 /** The user of an API request (always set inside the API scope). */

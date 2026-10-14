@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Android app support (phase 6): the external API for the app (own address through a Cloudflare tunnel, `external_api_url`, port 8100) with Home Assistant token login; sync endpoint with deletions; phone registration with away detection (actions are skipped while your phone is in another time zone).
+- Dismiss flow: dismiss and snooze reports from the app and a **Dismiss** button in the panel (also early, up to an hour before); *after dismiss* actions can be chosen again and run after the dismissal plus their delay; an alarm nobody dismisses expires after `dismiss_timeout_minutes`. Dismissing and snoozing fire `alarm_actions_alarm_dismissed` / `alarm_actions_alarm_snoozed` events.
+- Panel: **Install app** tab on Android phones (download, install steps, setup link), **Your phones** list and an away banner.
+
 ## 0.1.2
 
 - Livelier panel: the editor opens as an animated popup (slides up on phones), deleting asks in a confirmation popup, short notifications confirm saving, deleting, switching on/off and skipping, the list animates in, and a loading placeholder replaces the "Loading…" text. Animations are turned off when the system asks for reduced motion.

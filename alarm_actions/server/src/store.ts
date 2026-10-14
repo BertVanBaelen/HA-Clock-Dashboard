@@ -264,7 +264,23 @@ export class AlarmStore {
 
   /** Removes tombstones older than `maxAgeMs` (kept at least 30 days, TR-DAT-06). */
   pruneTombstones(maxAgeMs: number): number {
-    return this.db.prepare('DELETE FROM tombstones WHERE deleted_at < ?').run(this.now() - maxAgeMs)
-      .changes;
+    return this.db.transaction(() => {
+      const cutoff = this.now() - maxAgeMs;
+      const row = this.db
+        .prepare('SELECT MAX(change_seq) AS seq FROM tombstones WHERE deleted_at < ?')
+        .get(cutoff) as { seq: number | null };
+      if (row.seq !== null && row.seq > this.tombstoneFloor) {
+        setMeta(this.db, 'tombstone_floor', String(row.seq));
+      }
+      return this.db.prepare('DELETE FROM tombstones WHERE deleted_at < ?').run(cutoff).changes;
+    })();
+  }
+
+  /**
+   * Highest `change_seq` of a pruned tombstone. A client whose cursor is below it may have missed
+   * a deletion and gets a full resync.
+   */
+  get tombstoneFloor(): number {
+    return Number(getMeta(this.db, 'tombstone_floor') ?? '0');
   }
 }

@@ -39,7 +39,7 @@ Requires **Home Assistant OS or Supervised** (add-ons need the Supervisor; Conta
 1. Create the scripts you want to use (e.g. `script.heat_bathroom`)
 2. Give each script the label `alarm_action`
 3. Open **Alarms** in the sidebar, create an alarm, add actions and timings
-4. For a ringing alarm on Android: install the app from the **Install app** tab, scan the setup QR code and log in with your HA account
+4. For a ringing alarm on Android: open the Alarms panel on the phone, install the app from the **Install app** tab, tap **Set up the app** and log in with your HA account
 
 ## Security
 - Users can only see and change **their own alarms** (also admins); everyone sees the upcoming actions planned by other users, with their time

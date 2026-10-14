@@ -375,14 +375,11 @@ export function AlarmEditor({
                           )
                         }
                       >
-                        {/* after_dismiss runs need dismiss events (phase 6); only shown when already set. */}
-                        {TIMINGS.filter((x) => x !== 'after_dismiss' || action.timing === x).map(
-                          (timing) => (
-                            <option key={timing} value={timing}>
-                              {t.timings[timing]}
-                            </option>
-                          ),
-                        )}
+                        {TIMINGS.map((timing) => (
+                          <option key={timing} value={timing}>
+                            {t.timings[timing]}
+                          </option>
+                        ))}
                       </select>
                       {action.offset_minutes !== null ||
                       action.timing === 'before' ||

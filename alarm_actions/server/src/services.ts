@@ -10,6 +10,8 @@ import { HistoryStore } from './history.js';
 import { Scheduler } from './scheduler.js';
 import { AlarmStore } from './store.js';
 import { AppProbe } from './appProbe.js';
+import { ClientStore } from './clients.js';
+import { TokenValidator } from './tokenAuth.js';
 
 /** Everything the routes and background jobs share. Tests build it with fakes. */
 export interface Services {
@@ -25,6 +27,8 @@ export interface Services {
   executor: Executor;
   scheduler: Scheduler;
   appProbe: AppProbe;
+  clients: ClientStore;
+  tokens: TokenValidator;
   /** Wall clock in ms; injectable for tests. */
   now: () => number;
 }
@@ -54,6 +58,7 @@ export function createServices(
   const store = new AlarmStore(db, now);
   const history = new HistoryStore(db, now);
   const settings = config.settings;
+  const clients = new ClientStore(db, now, () => directory.timeZone);
   const executor = new Executor(ha, users, scripts, history, settings, log);
   const scheduler = new Scheduler({
     db,
@@ -64,11 +69,13 @@ export function createServices(
     directory,
     users,
     scripts,
+    clients,
     settings,
     log,
     now,
   });
   const appProbe = new AppProbe(config.appUrl, log, now);
+  const tokens = new TokenValidator({ url: config.haCoreWsUrl, log, now });
   return {
     config,
     db,
@@ -82,6 +89,8 @@ export function createServices(
     executor,
     scheduler,
     appProbe,
+    clients,
+    tokens,
     now,
   };
 }

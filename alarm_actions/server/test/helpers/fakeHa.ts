@@ -44,6 +44,12 @@ export class FakeHaCore {
   failCall: ((call: ServiceCall) => string | null) | null = null;
   /** When false, new connections are refused (Core down). */
   accepting = true;
+  /** User access tokens (external API, `auth/current_user`): token → user id. */
+  readonly userTokens = new Map<string, string>();
+  /** Logins with a user token (to check caching). */
+  userLogins = 0;
+  /** `fire_event` commands. */
+  readonly firedEvents: Array<{ event_type: string; event_data: unknown }> = [];
   state = {
     config: { time_zone: 'Europe/Brussels', external_url: 'https://home.example.com' as string | null },
     users: [
@@ -119,6 +125,7 @@ export class FakeHaCore {
     this.sockets.add(ws);
     this.subscriptions.set(ws, new Map());
     let authed = false;
+    let userId: string | null = null;
     ws.on('close', () => {
       this.sockets.delete(ws);
       this.subscriptions.delete(ws);
@@ -127,8 +134,14 @@ export class FakeHaCore {
     ws.on('message', (raw) => {
       const msg = JSON.parse(raw.toString()) as Record<string, unknown>;
       if (!authed) {
-        if (msg.type === 'auth' && msg.access_token === this.token) {
+        const userToken =
+          msg.type === 'auth' && typeof msg.access_token === 'string'
+            ? this.userTokens.get(msg.access_token)
+            : undefined;
+        if (userToken) this.userLogins++;
+        if (msg.type === 'auth' && (msg.access_token === this.token || userToken)) {
           authed = true;
+          userId = userToken ?? null;
           ws.send(JSON.stringify({ type: 'auth_ok', ha_version: '2026.1.0' }));
         } else {
           ws.send(JSON.stringify({ type: 'auth_invalid', message: 'Invalid access token' }));
@@ -136,11 +149,11 @@ export class FakeHaCore {
         }
         return;
       }
-      this.handle(ws, msg);
+      this.handle(ws, msg, userId);
     });
   }
 
-  private handle(ws: WebSocket, msg: Record<string, unknown>): void {
+  private handle(ws: WebSocket, msg: Record<string, unknown>, userId: string | null): void {
     const id = msg.id as number;
     const ok = (result: unknown) =>
       ws.send(JSON.stringify({ id, type: 'result', success: true, result }));
@@ -148,6 +161,11 @@ export class FakeHaCore {
       ws.send(JSON.stringify({ id, type: 'result', success: false, error: { code, message } }));
 
     switch (msg.type) {
+      case 'auth/current_user':
+        return userId ? ok({ id: userId, name: userId, is_admin: false }) : fail('unauthorized', 'No user');
+      case 'fire_event':
+        this.firedEvents.push({ event_type: msg.event_type as string, event_data: msg.event_data });
+        return ok({ context: { id: 'ctx' } });
       case 'get_config':
         return ok(this.state.config);
       case 'config/auth/list':

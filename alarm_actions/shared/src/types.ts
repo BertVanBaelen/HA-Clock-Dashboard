@@ -75,6 +75,74 @@ export interface Alarm {
   next_occurrence: string | null;
   /** Why the system disabled the alarm, when it did. */
   disabled_reason: DisabledReason;
+  /**
+   * The occurrence that can be dismissed right now (pending within 60 min, or ringing until the
+   * dismissal timeout), or an early-dismissed occurrence that has not come yet (`dismissed`: the
+   * phone must not ring for it). Null otherwise. Derived.
+   */
+  current_occurrence: CurrentOccurrence | null;
+}
+
+export const OCCURRENCE_STATUSES = [
+  'pending',
+  'skipped',
+  'fired',
+  'snoozed',
+  'dismissed',
+  'expired',
+] as const;
+export type OccurrenceStatus = (typeof OCCURRENCE_STATUSES)[number];
+
+export interface CurrentOccurrence {
+  id: string;
+  scheduled_at: string;
+  status: 'pending' | 'fired' | 'snoozed' | 'dismissed';
+}
+
+export const OCCURRENCE_EVENT_TYPES = ['dismissed', 'snoozed', 'timed_out'] as const;
+export type OccurrenceEventType = (typeof OCCURRENCE_EVENT_TYPES)[number];
+
+/** Answer to a dismissed / snoozed / timed_out report (FR-EVT-01, 02). */
+export interface OccurrenceEventResponse {
+  occurrence_id: string;
+  type: OccurrenceEventType;
+  /** Occurrence status after the report. */
+  status: OccurrenceStatus;
+  /** True when this report was already received; nothing changed. */
+  duplicate: boolean;
+}
+
+/** `GET /sync?since=N` (FR-APP-03, TR-APP-07). */
+export interface SyncResponse {
+  /** Store-wide cursor; send it as `since` next time. */
+  change_seq: number;
+  /** True: `alarms` is the complete list and replaces the local copy. */
+  full: boolean;
+  alarms: Alarm[];
+  /** Ids of own alarms deleted since `since` (empty when `full`). */
+  deleted: string[];
+  time_zone: string | null;
+  snooze_minutes: number;
+  dismiss_timeout_minutes: number;
+  away: boolean;
+}
+
+/** A registered phone ([Client]). */
+export interface Client {
+  id: string;
+  name: string;
+  app_version: string;
+  time_zone: string;
+  last_sync_seq: number;
+  last_seen_at: string;
+  /** This phone's time zone differs from the HA time zone. */
+  away: boolean;
+}
+
+export interface ClientsResponse {
+  clients: Client[];
+  /** The owner is away: their most recently seen phone is in another time zone (FR-EXE-12). */
+  away: boolean;
 }
 
 /**
@@ -136,16 +204,29 @@ export interface Info {
   app_available: boolean;
 }
 
-/** `GET /app/info`: the APK offered by the app add-on (TR-APP-03); details follow in phase 6. */
-export interface AppInfo {
+/** The APK offered by the app add-on (TR-APP-03). */
+export interface AppPackage {
   available: boolean;
   version: string | null;
+  /** Android versionCode, for update checks in the app (A5). */
+  version_code: number | null;
+  /** SHA-256 of the APK, lowercase hex. */
+  sha256: string | null;
+  size: number | null;
+}
+
+/** `GET /app/info`: the APK plus the URLs the app is set up with (TR-API-14). */
+export interface AppInfo extends AppPackage {
+  /** HA external URL (login), null when not set in HA. */
+  ha_url: string | null;
+  /** The `external_api_url` option, null when the external API is off. */
+  api_url: string | null;
 }
 
 export interface Me {
   id: string;
   name: string;
-  /** Phase 6 (away detection); always false until then. */
+  /** The user's most recently seen phone is in another time zone (FR-EXE-12). */
   away: boolean;
 }
 
@@ -171,4 +252,6 @@ export const LIMITS = {
   actionsPerAlarm: 20,
   actionsTotal: 1000,
   labelLength: 100,
+  /** Phones per user; registering another replaces the longest unseen one. */
+  clientsPerUser: 10,
 } as const;

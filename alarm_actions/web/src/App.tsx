@@ -4,6 +4,8 @@ import type {
   ActionDefinition,
   ActionsResponse,
   Alarm,
+  Client,
+  ClientsResponse,
   Info,
   Me,
   PlannedAction,
@@ -16,6 +18,7 @@ import { AlarmList } from './AlarmList';
 import { AppTab } from './AppTab';
 import { duplicateDraft, editDraft, emptyDraft, type Draft } from './draft';
 import { Icon } from './Icon';
+import { PhonesList } from './PhonesList';
 import { PlannedList } from './PlannedList';
 import { t } from './strings';
 import { useToast } from './Toast';
@@ -28,7 +31,12 @@ export interface Data {
   alarms: Alarm[];
   /** Upcoming actions of other users' alarms. */
   planned: PlannedAction[];
+  /** The user's phones with the app. */
+  clients: Client[];
 }
+
+/** The install tab is only useful on the phone itself (the APK is downloaded there). */
+const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 
 /** Labeled scripts; loaded after the alarm list so they never delay opening the panel. */
 export interface Scripts {
@@ -52,13 +60,14 @@ export function App() {
     if (loading.current) return;
     loading.current = true;
     try {
-      const [info, me, alarms, planned] = await Promise.all([
+      const [info, me, alarms, planned, clients] = await Promise.all([
         api<Info>('info'),
         api<Me>('me'),
         api<{ alarms: Alarm[] }>('alarms'),
         api<PlannedResponse>('planned'),
+        api<ClientsResponse>('clients'),
       ]);
-      setData({ info, me, alarms: alarms.alarms, planned: planned.planned });
+      setData({ info, me, alarms: alarms.alarms, planned: planned.planned, clients: clients.clients });
       setError(null);
     } catch (err) {
       setError(errorMessage(err));
@@ -119,6 +128,15 @@ export function App() {
     setData((d) => (d ? { ...d, alarms: d.alarms.filter((a) => a.id !== id) } : d));
   }, []);
 
+  const removeClient = useCallback(
+    (id: string) => {
+      setData((d) => (d ? { ...d, clients: d.clients.filter((c) => c.id !== id) } : d));
+      // Away depends on the remaining phones.
+      void load();
+    },
+    [load],
+  );
+
   if (!data) {
     return (
       <main className="page">
@@ -141,7 +159,7 @@ export function App() {
     );
   }
 
-  const showAppTab = data.info.app_available;
+  const showAppTab = IS_ANDROID && data.info.app_available;
   const activeTab: Tab = tab === 'app' && !showAppTab ? 'alarms' : tab;
 
   return (
@@ -188,6 +206,11 @@ export function App() {
           {t.haOffline}
         </div>
       ) : null}
+      {data.me.away ? (
+        <div className="banner warning" role="status">
+          {t.awayBanner}
+        </div>
+      ) : null}
 
       {activeTab === 'alarms' ? (
         <AlarmList
@@ -202,6 +225,9 @@ export function App() {
       ) : null}
       {activeTab === 'alarms' ? (
         <PlannedList planned={data.planned} timeZone={data.info.time_zone} />
+      ) : null}
+      {activeTab === 'alarms' ? (
+        <PhonesList clients={data.clients} timeZone={data.info.time_zone} onRemoved={removeClient} />
       ) : null}
       {activeTab === 'app' ? (
         <div className="tab-panel">

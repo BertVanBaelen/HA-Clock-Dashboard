@@ -13,20 +13,32 @@ export { clientAddress } from './security.js';
 declare module 'fastify' {
   interface FastifyInstance {
     svc: Services;
+    /** `ingress`: panel listener (8099); `external`: app API listener (8100, TR-API-11). */
+    apiMode: ApiMode;
     /** Every registered route, for the route-enumeration test (SEC-11). */
     routeList: Array<{ method: string; url: string }>;
   }
 }
 
-export async function buildApp(svc: Services): Promise<FastifyInstance> {
+export type ApiMode = 'ingress' | 'external';
+
+export interface BuildOptions {
+  mode?: ApiMode;
+  /** Path prefix of the external API (from `external_api_url`), e.g. `/clock`. */
+  basePath?: string;
+}
+
+export async function buildApp(svc: Services, options: BuildOptions = {}): Promise<FastifyInstance> {
+  const mode = options.mode ?? 'ingress';
   const app = Fastify({
     loggerInstance: svc.log,
-    // Only the Supervisor ingress proxy talks to this listener; never trust forwarded headers.
+    // Never trust forwarded headers for identity; the external listener only uses them for rate limits.
     trustProxy: false,
     bodyLimit: 64 * 1024,
     logController: new LogController({ disableRequestLogging: true }),
   });
   app.decorate('svc', svc);
+  app.decorate('apiMode', mode);
   app.decorate('routeList', [] as Array<{ method: string; url: string }>);
   app.addHook('onRoute', (route) => {
     for (const method of [route.method].flat()) app.routeList.push({ method, url: route.url });
@@ -51,13 +63,30 @@ export async function buildApp(svc: Services): Promise<FastifyInstance> {
     return reply.code(status).send(body);
   });
 
-  // Every route requires an ingress identity from the Supervisor ingress proxy (SEC-01).
-  app.addHook('onRequest', async (req) => {
-    ingressUserId(req, svc.config.trustedProxy);
-  });
+  if (mode === 'external') {
+    // TR-API-13, SEC-13: API only, under the configured path; nothing is cached by proxies and
+    // there are no CORS headers (the app is not a browser).
+    app.addHook('onSend', async (_req, reply) => {
+      reply.header('Cache-Control', 'no-store');
+    });
+    await app.register(apiRoutes, { prefix: `${options.basePath ?? ''}/api/v1` });
+  } else {
+    // Every route requires an ingress identity from the Supervisor ingress proxy (SEC-01).
+    app.addHook('onRequest', async (req) => {
+      ingressUserId(req, svc.config.trustedProxy);
+    });
+    await app.register(apiRoutes, { prefix: '/api/v1' });
+    await registerPanel(app, svc);
+  }
 
-  await app.register(apiRoutes, { prefix: '/api/v1' });
+  app.setNotFoundHandler((_req, reply) =>
+    reply.code(404).send({ error: 'not_found', message: 'Not found.' } satisfies ApiErrorBody),
+  );
 
+  return app;
+}
+
+async function registerPanel(app: FastifyInstance, svc: Services): Promise<void> {
   const webDist = svc.config.webDistDir;
   if (webDist && fs.existsSync(path.join(webDist, 'index.html'))) {
     await app.register(fastifyStatic, {
@@ -73,10 +102,4 @@ export async function buildApp(svc: Services): Promise<FastifyInstance> {
   } else {
     app.log.warn('No web/dist found; serving the API only');
   }
-
-  app.setNotFoundHandler((_req, reply) =>
-    reply.code(404).send({ error: 'not_found', message: 'Not found.' } satisfies ApiErrorBody),
-  );
-
-  return app;
 }

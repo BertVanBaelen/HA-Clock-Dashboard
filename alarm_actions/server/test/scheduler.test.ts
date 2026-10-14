@@ -131,12 +131,19 @@ describe('planned runs', () => {
     expect(started(s.h)).toEqual([heat, coffee, heat]);
 
     expect(records(s.h, alarm).map((r) => r.result)).toEqual(['success', 'success', 'success']);
-    // Exactly once: more ticks start nothing; the fired occurrence is then done.
+    // Exactly once: more ticks start nothing; the fired occurrence stays open until it expires.
     await at(s, T1230 + 6 * MINUTE);
     expect(started(s.h)).toHaveLength(3);
-    const occurrences = s.h.services.scheduler.occurrences(alarm.id);
-    expect(occurrences.map((o) => [o.scheduled_at, o.status, o.runs_done])).toEqual([
-      [T1230, 'fired', 1],
+    const occurrences = () =>
+      s.h.services.scheduler.occurrences(alarm.id).map((o) => [o.scheduled_at, o.status, o.runs_done]);
+    expect(occurrences()).toEqual([
+      [T1230, 'fired', 0],
+      [T1230 + DAY, 'pending', 0],
+    ]);
+    await at(s, T1230 + 60 * MINUTE);
+    expect(started(s.h)).toHaveLength(3);
+    expect(occurrences()).toEqual([
+      [T1230, 'expired', 1],
       [T1230 + DAY, 'pending', 0],
     ]);
   });
@@ -154,8 +161,9 @@ describe('planned runs', () => {
     // 00:20: day 1's after run and day 2's before run.
     await at(s, NOW + 4 * MINUTE + 12 * 60 * MINUTE);
     expect(started(s.h).sort()).toEqual([coffee, heat]);
+    // Day 1 expired after the dismissal timeout but its after run still started.
     expect(s.h.services.scheduler.occurrences(alarm.id).map((o) => o.status)).toEqual([
-      'fired',
+      'expired',
       'pending',
     ]);
   });
@@ -265,7 +273,10 @@ describe('edits and deletes', () => {
     await at(s, T1230 + 15 * MINUTE);
     expect(started(s.h)).toEqual([coffee]);
     const fired = s.h.services.scheduler.occurrences(alarm.id)[0]!;
-    expect(fired).toMatchObject({ status: 'fired', runs_done: 1 });
+    expect(fired).toMatchObject({ status: 'fired', runs_done: 0 });
+    await at(s, T1230 + 60 * MINUTE);
+    expect(started(s.h)).toEqual([coffee]);
+    expect(s.h.services.scheduler.occurrences(alarm.id)[0]).toMatchObject({ status: 'expired', runs_done: 1 });
   });
 
   it('cancels all runs of a deleted alarm', async () => {
@@ -500,6 +511,7 @@ describe('retention', () => {
     const { alarm } = await create(s.h, { actions: [{ script_entity_id: coffee, timing: 'at' }] });
     await at(s, T1230);
     expect(records(s.h, alarm)).toHaveLength(1);
+    await at(s, T1230 + 60 * MINUTE); // expires, so the occurrence is finished
     s.c.set(T1230 + 2 * DAY);
     s.h.services.scheduler.prune();
     expect(records(s.h, alarm)).toEqual([]);

@@ -4,9 +4,15 @@ info:
   version: '1'
   summary: REST API of the Alarm Actions add-on.
   description: |
-    Served under `/api/v1` behind Home Assistant ingress. Every request must arrive through the
-    Supervisor ingress proxy, which sets the `X-Remote-User-Id` header; there are no routes
-    without login.
+    Served under `/api/v1` on two listeners; there are no routes without login.
+
+    - **Ingress** (the panel): every request must arrive through the Supervisor ingress proxy,
+      which sets the `X-Remote-User-Id` header.
+    - **External** (the Android app, only when `external_api_url` is set): port 8100, below the
+      path of `external_api_url` (for example `https://api.example.com/clock/api/v1`). Every
+      request needs `Authorization: Bearer <Home Assistant access token>`; the add-on checks the
+      token with Home Assistant (cached 60 s; failed checks are rate limited per address).
+      `X-Remote-User-*` headers are ignored. Responses carry `Cache-Control: no-store`.
 
     - Every user (also administrators) sees and changes only their own alarms; other users'
       alarms behave as not found (404).
@@ -17,11 +23,19 @@ info:
     - Rate limit: 120 requests per minute per user (429 with `Retry-After`).
 servers:
   - url: /api/v1
+    description: Ingress (panel)
+  - url: '{external_api_url}/api/v1'
+    description: External API for the app
+    variables:
+      external_api_url:
+        default: https://api.example.com/clock
 security:
   - ingress: []
+  - bearer: []
 tags:
   - name: general
   - name: alarms
+  - name: app
 paths:
   /info:
     get:
@@ -69,14 +83,92 @@ paths:
       tags: [general]
       operationId: getAppInfo
       description: >-
-        Whether the app add-on is running and which app version it offers (TR-APP-03). The panel
-        shows the "Install app" tab only when it is available. Full details follow in phase 6.
+        Whether the app add-on is running, which APK it offers (TR-APP-03) and the addresses the
+        app is set up with (TR-API-14). The app uses `version_code` for its update check.
       responses:
         '200':
           description: App availability.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AppInfo' }
+        default: { $ref: '#/components/responses/Error' }
+  /app/apk:
+    get:
+      tags: [app]
+      operationId: downloadApk
+      description: The signed APK, streamed from the app add-on (FR-APP-05, SEC-09).
+      responses:
+        '200':
+          description: The APK (`Content-Disposition` attachment).
+          content:
+            application/vnd.android.package-archive:
+              schema: { type: string, format: binary }
+        '503': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+  /sync:
+    get:
+      tags: [app]
+      operationId: sync
+      description: |
+        Own alarms changed since the cursor, plus deleted ones (FR-APP-03, TR-APP-07). Without
+        `since` (or `since=0`), or with a cursor that is too old or unknown, the answer is a full
+        list (`full: true`) that replaces the local copy.
+      parameters:
+        - name: since
+          in: query
+          required: false
+          schema: { type: string, pattern: '^\d{1,15}$', default: '0' }
+      responses:
+        '200':
+          description: Changes.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncResponse' }
+        default: { $ref: '#/components/responses/Error' }
+  /clients:
+    get:
+      tags: [app]
+      operationId: listClients
+      responses:
+        '200':
+          description: The user's phones, most recently seen first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientsResponse' }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      tags: [app]
+      operationId: registerClient
+      description: |
+        Registers or updates the phone (FR-APP-04); the app calls it on every sync. The time zone
+        drives away detection (FR-EXE-12). At 10 phones per user the longest unseen one is removed.
+        404 when the id belongs to another user (generate a new id).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientInput' }
+      responses:
+        '200':
+          description: The phone.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Client' }
+        '404': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+  /clients/{clientId}:
+    delete:
+      tags: [app]
+      operationId: removeClient
+      description: Removes one of the user's phones from the list; does not revoke its login.
+      parameters:
+        - name: clientId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Removed. }
+        '404': { $ref: '#/components/responses/Error' }
         default: { $ref: '#/components/responses/Error' }
   /settings:
     get:
@@ -227,6 +319,81 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         default: { $ref: '#/components/responses/Error' }
+  /alarms/{id}/occurrences/{occurrenceId}/dismissed:
+    parameters:
+      - $ref: '#/components/parameters/AlarmId'
+      - $ref: '#/components/parameters/OccurrenceId'
+    post:
+      tags: [alarms]
+      operationId: reportDismissed
+      description: |
+        The alarm was dismissed (FR-EVT-01). Owner only; from the app or the panel. Up to 60 min
+        before the alarm time this is an early dismissal: the before/at/after actions of that
+        occurrence are skipped and it does not ring. `after_dismiss` actions run at the dismissal
+        time plus their delay. After `dismiss_timeout_minutes` the occurrence expires instead.
+        Fires the HA event `alarm_actions_alarm_dismissed`. Idempotent per occurrence.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OccurrenceEventInput' }
+      responses:
+        '200':
+          description: 'Recorded (or already recorded, `duplicate: true`).'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OccurrenceEventResponse' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+  /alarms/{id}/occurrences/{occurrenceId}/snoozed:
+    parameters:
+      - $ref: '#/components/parameters/AlarmId'
+      - $ref: '#/components/parameters/OccurrenceId'
+    post:
+      tags: [alarms]
+      operationId: reportSnoozed
+      description: |
+        The alarm was snoozed (FR-EVT-02). Fires `alarm_actions_alarm_snoozed`. Not before the
+        alarm time (2 min clock tolerance).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OccurrenceEventInput' }
+      responses:
+        '200':
+          description: 'Recorded (or already recorded, `duplicate: true`).'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OccurrenceEventResponse' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+  /alarms/{id}/occurrences/{occurrenceId}/timed_out:
+    parameters:
+      - $ref: '#/components/parameters/AlarmId'
+      - $ref: '#/components/parameters/OccurrenceId'
+    post:
+      tags: [alarms]
+      operationId: reportTimedOut
+      description: |
+        Nobody dismissed the alarm on the phone in time (FR-EVT-03): the occurrence expires and its
+        `after_dismiss` actions do not run.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OccurrenceEventInput' }
+      responses:
+        '200':
+          description: 'Recorded (or already recorded, `duplicate: true`).'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OccurrenceEventResponse' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
   /alarms/{id}/actions/{actionId}/run:
     parameters:
       - $ref: '#/components/parameters/AlarmId'
@@ -257,19 +424,30 @@ components:
       in: header
       name: X-Remote-User-Id
       description: Set by the Home Assistant Supervisor ingress proxy; not usable from outside.
+    bearer:
+      type: http
+      scheme: bearer
+      description: Home Assistant access token (external listener only).
   parameters:
     AlarmId:
       name: id
       in: path
       required: true
       schema: { type: string, format: uuid }
+    OccurrenceId:
+      name: occurrenceId
+      in: path
+      required: true
+      description: '`<alarm id>_<scheduled time as YYYYMMDDTHHMMSSZ>`, as in `current_occurrence.id`.'
+      schema: { type: string, maxLength: 100, examples: ['5f0c..._20261014T103000Z'] }
   responses:
     Error:
       description: |
         Error. Codes: `invalid_input` / `bad_request` (400), `unauthorized` (401), `forbidden` (403),
         `not_found` (404), `conflict` (409, with `current_revision`), `payload_too_large` (413),
         `unsupported_media_type` (415), `limit_reached` / `script_unavailable` /
-        `not_repeating` (422), `rate_limited` (429), `internal_error` (500),
+        `not_repeating` / `invalid_occurrence` / `implausible_time` / `occurrence_skipped` (422),
+        `rate_limited` (429), `internal_error` (500),
         `service_unavailable` (503).
       content:
         application/json:
@@ -330,10 +508,87 @@ components:
         description: { type: [string, 'null'] }
     AppInfo:
       type: object
-      required: [available, version]
+      required: [available, version, version_code, sha256, size, ha_url, api_url]
       properties:
         available: { type: boolean }
         version: { type: [string, 'null'] }
+        version_code: { type: [integer, 'null'], description: 'Android versionCode (major*1000000 + minor*1000 + patch).' }
+        sha256: { type: [string, 'null'], pattern: '^[0-9a-f]{64}$' }
+        size: { type: [integer, 'null'], description: Bytes. }
+        ha_url: { type: [string, 'null'], description: HA external URL (login). }
+        api_url: { type: [string, 'null'], description: The `external_api_url` option. }
+    SyncResponse:
+      type: object
+      required: [change_seq, full, alarms, deleted, time_zone, snooze_minutes, dismiss_timeout_minutes, away]
+      properties:
+        change_seq: { type: integer, description: Send as `since` next time. }
+        full: { type: boolean, description: True when `alarms` is the complete list. }
+        alarms:
+          type: array
+          items: { $ref: '#/components/schemas/Alarm' }
+        deleted:
+          type: array
+          items: { type: string, format: uuid }
+        time_zone: { type: [string, 'null'] }
+        snooze_minutes: { type: integer }
+        dismiss_timeout_minutes: { type: integer }
+        away: { type: boolean }
+    ClientInput:
+      type: object
+      additionalProperties: false
+      required: [id, name, app_version, time_zone, last_sync_seq]
+      properties:
+        id: { type: string, format: uuid, description: Generated by the app once per install. }
+        name: { type: string, minLength: 1, maxLength: 100 }
+        app_version: { type: string, minLength: 1, maxLength: 40 }
+        time_zone: { type: string, maxLength: 64, examples: [Europe/Brussels] }
+        last_sync_seq: { type: integer, minimum: 0 }
+    Client:
+      type: object
+      required: [id, name, app_version, time_zone, last_sync_seq, last_seen_at, away]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        app_version: { type: string }
+        time_zone: { type: string }
+        last_sync_seq: { type: integer }
+        last_seen_at: { type: string, format: date-time }
+        away: { type: boolean }
+    ClientsResponse:
+      type: object
+      required: [clients, away]
+      properties:
+        clients:
+          type: array
+          items: { $ref: '#/components/schemas/Client' }
+        away: { type: boolean }
+    CurrentOccurrence:
+      type: object
+      required: [id, scheduled_at, status]
+      description: |
+        The occurrence that can be dismissed now: ringing (`fired` / `snoozed`, until the
+        dismissal timeout), already dismissed early (`dismissed`: the phone must not ring it), or
+        `pending` from 60 minutes before the alarm.
+      properties:
+        id: { type: string }
+        scheduled_at: { type: string, format: date-time }
+        status: { type: string, enum: [pending, fired, snoozed, dismissed] }
+    OccurrenceEventInput:
+      type: [object, 'null']
+      additionalProperties: false
+      properties:
+        occurred_at:
+          type: string
+          format: date-time
+          description: When it happened on the phone (with offset); default now. Later than now + 2 min is rejected.
+    OccurrenceEventResponse:
+      type: object
+      required: [occurrence_id, type, status, duplicate]
+      properties:
+        occurrence_id: { type: string }
+        type: { type: string, enum: [dismissed, snoozed, timed_out] }
+        status: { type: string, enum: [pending, fired, snoozed, dismissed, expired, skipped] }
+        duplicate: { type: boolean }
     Settings:
       type: object
       required:
@@ -438,6 +693,7 @@ components:
         - updated_at
         - next_occurrence
         - disabled_reason
+        - current_occurrence
       properties:
         id: { type: string, format: uuid }
         owner_user_id: { type: string }
@@ -464,6 +720,10 @@ components:
         disabled_reason:
           type: [string, 'null']
           enum: [owner_inactive, fired, null]
+        current_occurrence:
+          oneOf:
+            - $ref: '#/components/schemas/CurrentOccurrence'
+            - type: 'null'
     PlannedAction:
       type: object
       required: [owner_name, script_entity_id, script_name, icon_path, timing, run_at, alarm_at, delay_minutes]

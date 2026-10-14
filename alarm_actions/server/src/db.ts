@@ -77,6 +77,38 @@ const migrations: string[] = [
   CREATE INDEX records_alarm ON execution_records (alarm_id, created_at);
   CREATE INDEX records_started ON execution_records (executed_at, script_entity_id);
   `,
+  // 4: phones (Client), occurrence events and the dismissal time (phase 6). Snoozes can repeat;
+  // the other event types count once per occurrence (idempotent reports, FR-EVT-01).
+  `
+  CREATE TABLE clients (
+    id            TEXT PRIMARY KEY,
+    user_id       TEXT NOT NULL,
+    name          TEXT NOT NULL,
+    app_version   TEXT NOT NULL,
+    time_zone     TEXT NOT NULL,
+    last_sync_seq INTEGER NOT NULL,
+    last_seen_at  INTEGER NOT NULL,
+    created_at    INTEGER NOT NULL
+  );
+  CREATE INDEX clients_user ON clients (user_id, last_seen_at);
+  ALTER TABLE occurrences ADD COLUMN dismissed_at INTEGER;
+  CREATE TABLE occurrence_events (
+    id            TEXT PRIMARY KEY,
+    occurrence_id TEXT NOT NULL,
+    alarm_id      TEXT NOT NULL,
+    owner_user_id TEXT NOT NULL,
+    type          TEXT NOT NULL,
+    occurred_at   INTEGER NOT NULL,
+    received_at   INTEGER NOT NULL,
+    source        TEXT NOT NULL,
+    user_id       TEXT NOT NULL
+  );
+  CREATE UNIQUE INDEX occurrence_events_once ON occurrence_events (occurrence_id, type)
+    WHERE type != 'snoozed';
+  CREATE UNIQUE INDEX occurrence_events_snooze ON occurrence_events (occurrence_id, occurred_at)
+    WHERE type = 'snoozed';
+  CREATE INDEX occurrence_events_received ON occurrence_events (received_at);
+  `,
 ];
 
 export const SCHEMA_VERSION = migrations.length;

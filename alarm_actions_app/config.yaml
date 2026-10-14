@@ -1,0 +1,16 @@
+# Home Assistant add-on that holds the Android app (APK) for Alarm Actions.
+# The version is bumped by the release workflow together with alarm_actions/config.yaml; the
+# Android app's versionName is read from here (android/app/build.gradle.kts).
+name: Alarm Actions App
+version: "0.1.2"
+slug: alarm_actions_app
+description: Android app for Alarm Actions; while it runs the Alarms panel offers the download
+url: https://github.com/BertVanBaelen/HA-Clock-Dashboard
+# Prebuilt by GitHub Actions with the signed APK inside; users never build the image locally.
+image: ghcr.io/bertvanbaelen/alarm-actions-app-{arch}
+arch:
+  - aarch64
+  - amd64
+homeassistant: "2024.4.0"
+# Internal Supervisor network only: no ports, no ingress panel (TR-APP-01, SEC-12).
+init: false

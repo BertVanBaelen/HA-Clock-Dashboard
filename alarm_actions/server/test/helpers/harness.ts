@@ -40,6 +40,8 @@ export function testConfig(dataDir: string, haWsUrl: string, settings: Partial<S
     host: '127.0.0.1',
     trustedProxy: INGRESS_IP,
     haWsUrl,
+    haCoreWsUrl: haWsUrl,
+    externalPort: 0,
     supervisorToken: 'test-supervisor-token',
     webDistDir: null,
     logLevel: 'silent',
@@ -56,16 +58,28 @@ export interface HarnessOptions {
   start?: boolean;
   dataDir?: string;
   fake?: FakeHaCore;
+  /** Also build the external API listener with this base path (e.g. `/clock`). */
+  externalBasePath?: string;
 }
 
 export interface Harness {
   fake: FakeHaCore;
   services: Services;
   app: FastifyInstance;
+  /** The external API listener, when `externalBasePath` was given. */
+  external: FastifyInstance | null;
   dataDir: string;
   /** Request as an ingress user (or without identity when `user` is null). */
   request(
     user: string | null,
+    method: InjectOptions['method'],
+    url: string,
+    payload?: unknown,
+    extra?: Partial<InjectOptions>,
+  ): Promise<LightMyRequestResponse>;
+  /** Request on the external listener with a bearer token (or none when `token` is null). */
+  requestExternal(
+    token: string | null,
     method: InjectOptions['method'],
     url: string,
     payload?: unknown,
@@ -87,6 +101,11 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
   });
   const app = await buildApp(services);
   await app.ready();
+  const external =
+    options.externalBasePath === undefined
+      ? null
+      : await buildApp(services, { mode: 'external', basePath: options.externalBasePath });
+  await external?.ready();
   if (options.start !== false) {
     startServices(services);
     await waitFor(() => services.ha.readyCount > 0, 5000, 'HA connection');
@@ -96,6 +115,7 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
     fake,
     services,
     app,
+    external,
     dataDir,
     request(user, method, url, payload, extra = {}) {
       return app.inject({
@@ -107,8 +127,21 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
         ...extra,
       });
     },
+    requestExternal(token, method, url, payload, extra = {}) {
+      if (!external) throw new Error('No external listener in this harness');
+      const { headers, ...rest } = extra;
+      return external.inject({
+        method,
+        url,
+        remoteAddress: '172.30.33.5',
+        headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), ...headers },
+        ...(payload === undefined ? {} : { payload: payload as object }),
+        ...rest,
+      });
+    },
     async close(all = false) {
       await app.close();
+      await external?.close();
       await stopServices(services);
       db.close();
       if (all) {

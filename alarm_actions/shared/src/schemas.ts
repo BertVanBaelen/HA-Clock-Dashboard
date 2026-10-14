@@ -108,6 +108,44 @@ export type AlarmUpdateInput = z.output<typeof alarmUpdateSchema>;
 /** Body of skip / unskip / run: nothing, or an empty object. */
 export const emptyBodySchema = z.object({}).strict().optional();
 
+/** True for a time zone name the runtime knows (IANA). */
+export function isTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** `POST /clients` (FR-APP-04). */
+export const clientInputSchema = z
+  .object({
+    id: z.string().regex(UUID, 'must be a UUID').transform((v) => v.toLowerCase()),
+    name: z.string().trim().min(1).max(100),
+    app_version: z.string().trim().min(1).max(40),
+    time_zone: z
+      .string()
+      .max(64)
+      .regex(/^[A-Za-z0-9_+\-/]+$/, 'must be an IANA time zone')
+      .refine(isTimeZone, 'is not a known time zone'),
+    last_sync_seq: z.number().int().min(0),
+  })
+  .strict();
+export type ClientInput = z.output<typeof clientInputSchema>;
+
+/** Body of a dismissed / snoozed / timed_out report: optional client time (FR-EVT-01). */
+export const occurrenceEventSchema = z
+  .object({ occurred_at: z.string().datetime({ offset: true }).optional() })
+  .strict()
+  .optional();
+
+/** `?since=` of `GET /sync`. */
+export const syncQuerySchema = z
+  .object({ since: z.string().regex(/^\d{1,15}$/, 'must be a whole number').optional() })
+  .strict()
+  .transform((q) => ({ since: q.since === undefined ? 0 : Number(q.since) }));
+
 /** Human readable summary of a zod error, used in 400 responses. */
 export function describeZodError(error: z.ZodError): string {
   return error.issues

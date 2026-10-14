@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from 'react';
-import { mdiContentCopy, mdiPencil, mdiSkipNext, mdiUndo, mdiAlertCircleOutline } from '@mdi/js';
-import type { ActionDefinition, Alarm } from '@alarm-actions/shared';
+import { mdiContentCopy, mdiPencil, mdiSkipNext, mdiUndo, mdiAlertCircleOutline, mdiAlarmOff } from '@mdi/js';
+import type { ActionDefinition, Alarm, CurrentOccurrence, OccurrenceEventResponse } from '@alarm-actions/shared';
 import { ApiError, api, errorMessage } from './api';
 import type { Data } from './App';
 import { toggleBody } from './draft';
@@ -80,11 +80,26 @@ export function AlarmList({
       alarm.skip_next ? t.skipUndone : t.skipped,
     );
 
+  // Manual dismissal from the panel (FR-EVT-01, FR-EXE-11): also early, up to an hour before.
+  const dismiss = (alarm: Alarm, occurrence: CurrentOccurrence) =>
+    run(
+      alarm,
+      async () => {
+        await api<OccurrenceEventResponse>(
+          `alarms/${alarm.id}/occurrences/${encodeURIComponent(occurrence.id)}/dismissed`,
+          { method: 'POST' },
+        );
+        return api<Alarm>(`alarms/${alarm.id}`);
+      },
+      t.dismissedToast,
+    );
+
   const renderItem = (alarm: Alarm, index: number) => {
     const known = scripts ? new Set(scripts.map((a) => a.entity_id)) : null;
     const broken = known !== null && alarm.actions.some((a) => !known.has(a.script_entity_id));
     const repeating = alarm.repeat_days.length > 0;
     const disabled = busy === alarm.id;
+    const current = alarm.current_occurrence;
     return (
       <li
         key={alarm.id}
@@ -105,6 +120,9 @@ export function AlarmList({
                 : t.off}
               {alarm.skip_next ? ` · ${t.skipped}` : ''}
             </span>
+            {current?.status === 'dismissed' ? (
+              <span className="badge">{t.dismissedAt(formatNext(current.scheduled_at, data.info.time_zone))}</span>
+            ) : null}
             {broken ? (
               <span className="badge warning">
                 <Icon path={mdiAlertCircleOutline} size={14} />
@@ -114,6 +132,18 @@ export function AlarmList({
           </span>
         </button>
         <div className="alarm-controls">
+          {current && current.status !== 'dismissed' ? (
+            <button
+              type="button"
+              className={current.status === 'pending' ? 'icon-button' : 'icon-button active'}
+              title={current.status === 'pending' ? t.dismissEarly : t.dismiss}
+              aria-label={current.status === 'pending' ? t.dismissEarly : t.dismiss}
+              disabled={disabled}
+              onClick={() => void dismiss(alarm, current)}
+            >
+              <Icon path={mdiAlarmOff} />
+            </button>
+          ) : null}
           {repeating && alarm.enabled ? (
             <button
               type="button"
