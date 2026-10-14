@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">Alarm Actions</string>
+    <string name="title">Alarms</string>
+    <string name="alarm">Alarm</string>
+
+    <!-- Notification channels / notifications -->
+    <string name="channel_alarm">Ringing alarms</string>
+    <string name="channel_alarm_description">Shows the ringing alarm full screen. Keep this channel on, with sound.</string>
+    <string name="channel_snooze">Snoozed alarms</string>
+    <string name="channel_status">Status</string>
+    <string name="missed_title">Missed alarm</string>
+    <string name="missed_text">An alarm could not ring because the phone was off. Open the app for details.</string>
+    <string name="login_again_title">Log in again</string>
+    <string name="login_again_text">Your Home Assistant login has expired. Alarms keep ringing, but changes are not synced.</string>
+    <string name="login_again">Log in again</string>
+    <string name="update_available">Update available</string>
+    <string name="update_available_text">Version %s is available. Tap to install.</string>
+    <string name="snoozed_title">Snoozed: %s</string>
+    <string name="snoozed_until">Snoozed until %s</string>
+    <string name="snooze">Snooze</string>
+    <string name="stop">Stop</string>
+
+    <!-- Messages -->
+    <string name="saved_offline">Saved on this phone. It is sent when the dashboard is reachable.</string>
+    <string name="alarm_on">Alarm for %s is on</string>
+    <string name="alarm_off">Alarm for %s is off</string>
+    <string name="skipped">Next alarm skipped</string>
+    <string name="skip_undone">Skip undone</string>
+    <string name="dismissed_early">Alarm dismissed</string>
+    <string name="login_failed">Login failed. Try again.</string>
+    <string name="alarm_created">Alarm set for %s</string>
+    <string name="alarm_saved">Alarm for %s saved</string>
+    <string name="alarm_deleted">Alarm deleted</string>
+    <string name="run_result">Run result: %s</string>
+
+    <!-- Days / timing -->
+    <string name="once">Once</string>
+    <string name="every_day">Every day</string>
+    <string name="weekdays">Weekdays</string>
+    <string name="weekend">Weekend</string>
+    <string name="timing_before">Before alarm</string>
+    <string name="timing_at">At alarm</string>
+    <string name="timing_after">After alarm</string>
+    <string name="timing_after_dismiss">After dismiss</string>
+
+    <!-- Validation (same as the panel) -->
+    <string name="invalid_time">Enter a valid time.</string>
+    <string name="choose_script">Choose a script.</string>
+    <string name="minutes_range">Minutes must be between 1 and 720.</string>
+    <string name="delay_range">Delay must be between 0 and 120 minutes.</string>
+    <string name="duplicate_action">Same as another action.</string>
+    <string name="snooze_range">Snooze must be between %1$d and %2$d minutes.</string>
+    <string name="label_length">At most %d characters.</string>
+    <string name="action_limit">At most %d actions per alarm.</string>
+
+    <!-- Problems -->
+    <string name="network_error">The dashboard is not reachable. Check your connection.</string>
+    <string name="ha_offline">Home Assistant is not reachable. Alarms are kept and run when it is back.</string>
+    <string name="conflict">This alarm was changed somewhere else. Reload it to see the latest version.</string>
+    <string name="forbidden">You are not allowed to do this.</string>
+    <string name="not_found">This alarm no longer exists.</string>
+    <string name="generic_error">Something went wrong. Try again.</string>
+    <string name="url_empty">Enter an address.</string>
+    <string name="url_not_https">The address must start with https://</string>
+    <string name="url_invalid">This is not a valid address.</string>
+
+    <!-- Setup -->
+    <string name="setup_title">Connect to Home Assistant</string>
+    <string name="setup_intro">Open the Alarm Actions panel in Home Assistant, choose “Connect phone” and scan the QR code with your camera app. Or enter both addresses below.</string>
+    <string name="ha_url">Home Assistant address</string>
+    <string name="api_url">Alarm Actions API address</string>
+    <string name="api_url_hint">Shown in the panel under “Connect phone”.</string>
+    <string name="login">Log in</string>
+    <string name="no_browser">No browser found to log in.</string>
+    <string name="setup_login_hint">You log in on your own Home Assistant page. The app never sees your password.</string>
+    <string name="cancel">Cancel</string>
+    <string name="close">Close</string>
+    <string name="loading">Loading…</string>
+
+    <!-- Alarm list -->
+    <string name="sync_now">Sync now</string>
+    <string name="more">More</string>
+    <string name="night_display">Night display</string>
+    <string name="health_check">Health check</string>
+    <string name="health_check_hint">Check that alarms can ring reliably on this phone.</string>
+    <string name="settings">Settings</string>
+    <string name="new_alarm">New alarm</string>
+    <string name="dashboard_too_old">The Alarm Actions dashboard is too old for this app. Update the add-on in Home Assistant.</string>
+    <string name="app_too_old">This app is too old for the dashboard. Install the update.</string>
+    <string name="update_downloading">Downloading update… %d%%</string>
+    <string name="update_installing">Installing update…</string>
+    <string name="update_blocked_ringing">The update waits until the alarm has stopped.</string>
+    <string name="update_blocked_soon">An alarm rings within 30 minutes. Install the update later.</string>
+    <string name="update_needs_permission">Allow this app to install updates first.</string>
+    <string name="update_checksum">The download is damaged (checksum mismatch). Try again.</string>
+    <string name="update_failed">The update failed. Try again.</string>
+    <string name="allow">Allow</string>
+    <string name="update">Update</string>
+    <string name="away_banner">Away: Home Assistant actions paused. Alarms ring at their local time.</string>
+    <string name="missed_one">Missed alarm: %1$s (%2$s)</string>
+    <string name="review">Review</string>
+    <string name="no_alarms">No alarms yet. Tap + to add one.</string>
+    <string name="last_synced">Last synced %s</string>
+    <string name="never_synced">Not synced yet</string>
+    <string name="offline">Offline</string>
+    <string name="sync_failed">Sync failed</string>
+    <string name="off">Off</string>
+    <string name="next_ring">Next: %s</string>
+    <string name="no_next_alarm">No alarm set</string>
+    <string name="not_saved">Not saved</string>
+    <string name="not_synced">Not synced yet</string>
+    <string name="dismiss_now">Dismiss</string>
+    <string name="undo_skip">Undo skip</string>
+    <string name="skip_next">Skip next</string>
+
+    <!-- Editor -->
+    <string name="edit_alarm">Edit alarm</string>
+    <string name="saving">Saving…</string>
+    <string name="save">Save</string>
+    <string name="reload">Reload</string>
+    <string name="label">Label</string>
+    <string name="label_placeholder">Wake up</string>
+    <string name="repeat">Repeat</string>
+    <string name="repeat_hint">No days selected: the alarm rings once.</string>
+    <string name="enabled">On</string>
+    <string name="snooze_minutes">Snooze (minutes)</string>
+    <string name="snooze_default">Default (%d)</string>
+    <string name="sound">Sound</string>
+    <string name="sound_default">Default alarm sound</string>
+    <string name="choose">Choose</string>
+    <string name="actions">Actions</string>
+    <string name="no_actions">No actions. Add one to run a script before, at or after the alarm.</string>
+    <string name="loading_scripts">Loading scripts…</string>
+    <string name="no_scripts">No scripts available. Give a script the label “%s” in Home Assistant to use it here.</string>
+    <string name="add_action">Add action</string>
+    <string name="duplicate">Duplicate</string>
+    <string name="delete">Delete</string>
+    <string name="confirm_delete">Delete this alarm?</string>
+    <string name="delete_hint">The alarm and its actions are removed. This cannot be undone.</string>
+    <string name="yes_delete">Yes, delete</string>
+    <string name="saved_with_warnings">Saved with warnings</string>
+    <string name="before_missed">“%2$s” (%1$d min before) is already past for the next alarm and will not run this time.</string>
+    <string name="script">Script</string>
+    <string name="pick_script">Choose a script…</string>
+    <string name="unavailable">Unavailable</string>
+    <string name="unavailable_hint">This script no longer exists or lost its label. The action is skipped until you fix or remove it.</string>
+    <string name="timing">When</string>
+    <string name="minutes">Minutes</string>
+    <string name="delay">Delay (minutes)</string>
+    <string name="run_now">Run now</string>
+    <string name="remove">Remove</string>
+
+    <!-- Conflict -->
+    <string name="conflict_title">Change not saved</string>
+    <string name="conflict_changed">This alarm was changed somewhere else while your change was waiting. Choose which version to keep.</string>
+    <string name="conflict_deleted">This alarm was deleted somewhere else while your change was waiting.</string>
+    <string name="edit_rejected">The dashboard refused this change: %s</string>
+    <string name="conflict_mine">Your change</string>
+    <string name="conflict_mine_delete">Delete the alarm</string>
+    <string name="conflict_server">Version on the dashboard</string>
+    <string name="keep_mine">Keep mine</string>
+    <string name="use_server">Use dashboard version</string>
+    <string name="discard_change">Discard my change</string>
+
+    <!-- Health check / guide -->
+    <string name="guide_title">Make alarms reliable</string>
+    <string name="guide_intro">An alarm clock needs a few permissions. Fix every item marked with a warning; you can come back here later via Settings → Health check.</string>
+    <string name="continue_button">Continue</string>
+    <string name="fix">Fix</string>
+    <string name="check_exact">Alarms and reminders</string>
+    <string name="check_exact_text">Needed to ring at the exact minute.</string>
+    <string name="check_notifications">Notifications</string>
+    <string name="check_notifications_text">Needed to show the ringing alarm and snooze status.</string>
+    <string name="check_channel">Alarm notification channel</string>
+    <string name="check_channel_text">The “Ringing alarms” channel must be on with high importance, or the alarm cannot open on the lock screen.</string>
+    <string name="check_full_screen">Full-screen alarm</string>
+    <string name="check_full_screen_text">Lets the alarm appear over the lock screen.</string>
+    <string name="check_battery">Battery optimisation</string>
+    <string name="check_battery_text">Exclude this app from battery optimisation so the phone does not delay alarms or sync. Some manufacturers have an extra setting (see the user guide).</string>
+    <string name="check_dnd">Do Not Disturb</string>
+    <string name="check_dnd_text">Alarms ring during Do Not Disturb unless it is set to “Total silence” or alarms are not allowed. Check your Do Not Disturb exceptions.</string>
+    <string name="check_install">Install updates</string>
+    <string name="check_install_text">Optional: allow this app to install its own updates downloaded from your dashboard.</string>
+
+    <!-- Settings -->
+    <string name="account">Account</string>
+    <string name="user">User</string>
+    <string name="server_time_zone">Home Assistant time zone</string>
+    <string name="logout">Log out</string>
+    <string name="logout_confirm">Log out? All alarms are removed from this phone and will no longer ring here.</string>
+    <string name="default_sound">Default sound</string>
+    <string name="volume_ramp">Gradually louder</string>
+    <string name="volume_ramp_hint">Start softly and increase the volume over one minute.</string>
+    <string name="night_auto">Start while charging</string>
+    <string name="night_auto_hint">Open the night display when the charger is connected with the app open, inside the time window.</string>
+    <string name="night_from">From</string>
+    <string name="night_until">Until</string>
+    <string name="night_open">Open night display</string>
+    <string name="reliability">Reliability</string>
+    <string name="about">About</string>
+    <string name="version">Version</string>
+    <string name="last_sync">Last sync</string>
+    <string name="client_id">Phone id</string>
+
+    <plurals name="missed_many">
+        <item quantity="one">%d alarm was missed while the phone was off.</item>
+        <item quantity="other">%d alarms were missed while the phone was off.</item>
+    </plurals>
+    <plurals name="edits_problem">
+        <item quantity="one">%d change could not be saved.</item>
+        <item quantity="other">%d changes could not be saved.</item>
+    </plurals>
+    <plurals name="pending_edits">
+        <item quantity="one">%d change waiting</item>
+        <item quantity="other">%d changes waiting</item>
+    </plurals>
+    <plurals name="action_count">
+        <item quantity="one">%d action</item>
+        <item quantity="other">%d actions</item>
+    </plurals>
+</resources>

@@ -1,0 +1,4 @@
+# Wrapper scripts must keep platform line endings; the wrapper jar is binary.
+gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary
