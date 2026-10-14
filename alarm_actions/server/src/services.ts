@@ -3,6 +3,9 @@ import type { AppConfig } from './config.js';
 import type { DB } from './db.js';
 import { HaClient } from './ha/client.js';
 import { HaDirectory } from './ha/directory.js';
+import { ScriptRegistry } from './ha/scripts.js';
+import { UserDirectory } from './ha/users.js';
+import { AlarmStore } from './store.js';
 
 /** Everything the routes and background jobs share. Tests build it with fakes. */
 export interface Services {
@@ -11,6 +14,9 @@ export interface Services {
   log: FastifyBaseLogger;
   ha: HaClient;
   directory: HaDirectory;
+  users: UserDirectory;
+  scripts: ScriptRegistry;
+  store: AlarmStore;
   /** Wall clock in ms; injectable for tests. */
   now: () => number;
 }
@@ -26,6 +32,7 @@ export function createServices(
   log: FastifyBaseLogger,
   options: ServiceOptions = {},
 ): Services {
+  const now = options.now ?? Date.now;
   const ha = new HaClient({
     url: config.haWsUrl,
     token: config.supervisorToken ?? '',
@@ -34,18 +41,24 @@ export function createServices(
     maxBackoffMs: options.haBackoffMs?.max,
   });
   const directory = new HaDirectory(ha, log);
-  return { config, db, log, ha, directory, now: options.now ?? Date.now };
+  const users = new UserDirectory(ha, log, now);
+  const scripts = new ScriptRegistry(ha, log, config.settings.action_label);
+  const store = new AlarmStore(db, now);
+  return { config, db, log, ha, directory, users, scripts, store, now };
 }
 
-/** Starts the background parts (HA connection). */
+/** Starts the background parts (HA connection, periodic refreshes). */
 export function startServices(services: Services): void {
   if (!services.config.supervisorToken) {
     services.log.warn('SUPERVISOR_TOKEN is not set; not connecting to Home Assistant');
     return;
   }
   services.ha.start();
+  services.users.startPeriodic();
 }
 
 export async function stopServices(services: Services): Promise<void> {
+  services.users.stopPeriodic();
+  services.scripts.stop();
   await services.ha.stop();
 }

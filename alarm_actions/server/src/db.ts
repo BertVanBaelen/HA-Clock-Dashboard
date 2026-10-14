@@ -18,6 +18,33 @@ const migrations: string[] = [
   );
   INSERT INTO meta (key, value) VALUES ('change_seq', '0');
   `,
+  // 2: alarms with their actions, and tombstones of deleted alarms (TR-DAT-06).
+  `
+  CREATE TABLE alarms (
+    id              TEXT PRIMARY KEY,
+    owner_user_id   TEXT NOT NULL,
+    label           TEXT NOT NULL DEFAULT '',
+    time            TEXT NOT NULL,
+    repeat_days     TEXT NOT NULL DEFAULT '[]',
+    enabled         INTEGER NOT NULL DEFAULT 1,
+    skip_next       INTEGER NOT NULL DEFAULT 0,
+    snooze_minutes  INTEGER,
+    actions_json    TEXT NOT NULL DEFAULT '[]',
+    disabled_reason TEXT,
+    revision        INTEGER NOT NULL,
+    change_seq      INTEGER NOT NULL,
+    created_at      INTEGER NOT NULL,
+    updated_at      INTEGER NOT NULL
+  );
+  CREATE INDEX alarms_owner ON alarms (owner_user_id);
+  CREATE TABLE tombstones (
+    alarm_id      TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL,
+    change_seq    INTEGER NOT NULL,
+    deleted_at    INTEGER NOT NULL
+  );
+  CREATE INDEX tombstones_owner ON tombstones (owner_user_id, change_seq);
+  `,
 ];
 
 export const SCHEMA_VERSION = migrations.length;
@@ -30,6 +57,17 @@ export function openDatabase(file: string): DB {
 
   // Foreign keys stay off during migrations, so table rebuilds don't cascade.
   db.pragma('foreign_keys = OFF');
+  try {
+    migrate(db);
+  } catch (err) {
+    db.close();
+    throw err;
+  }
+  db.pragma('foreign_keys = ON');
+  return db;
+}
+
+function migrate(db: DB): void {
   const current = db.pragma('user_version', { simple: true }) as number;
   if (current > migrations.length) {
     throw new Error(
@@ -45,8 +83,6 @@ export function openDatabase(file: string): DB {
       db.pragma(`user_version = ${i + 1}`);
     })();
   }
-  db.pragma('foreign_keys = ON');
-  return db;
 }
 
 export function getMeta(db: DB, key: string): string | null {

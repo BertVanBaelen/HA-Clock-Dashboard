@@ -32,3 +32,116 @@ export interface ApiErrorBody {
   message: string;
   [extra: string]: unknown;
 }
+
+/** Weekdays are exchanged as names, never numbers (TR-API-08). */
+export const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+export type Weekday = (typeof WEEKDAYS)[number];
+
+export const TIMINGS = ['before', 'at', 'after', 'after_dismiss'] as const;
+export type Timing = (typeof TIMINGS)[number];
+
+/** An action attached to an alarm ([AlarmAction]). */
+export interface AlarmAction {
+  id: string;
+  script_entity_id: string;
+  timing: Timing;
+  /** Required for `before` / `after`, null otherwise. */
+  offset_minutes: number | null;
+  /** Only for `after_dismiss` (default 0), null otherwise. */
+  delay_minutes: number | null;
+  enabled: boolean;
+}
+
+export type DisabledReason = 'owner_inactive' | 'fired' | null;
+
+/** An alarm as returned by the API. */
+export interface Alarm {
+  id: string;
+  owner_user_id: string;
+  /** Display name of the owner (from HA users), null when unknown. */
+  owner_name: string | null;
+  label: string;
+  time: string;
+  repeat_days: Weekday[];
+  enabled: boolean;
+  skip_next: boolean;
+  snooze_minutes: number | null;
+  actions: AlarmAction[];
+  revision: number;
+  change_seq: number;
+  created_at: string;
+  updated_at: string;
+  /** Next time the alarm rings (UTC ISO), null when disabled. Derived. */
+  next_occurrence: string | null;
+  /** Why the system disabled the alarm, when it did. */
+  disabled_reason: DisabledReason;
+  /** False for an admin looking at another user's alarm. */
+  editable: boolean;
+}
+
+/** Response of a create/update: the alarm plus warnings (for example `before` runs missed). */
+export interface AlarmSaveResponse {
+  alarm: Alarm;
+  warnings: AlarmWarning[];
+}
+
+export interface AlarmWarning {
+  code: 'before_missed';
+  alarm_action_id: string;
+  message: string;
+}
+
+/** A script that can be used as an action ([ActionDefinition]). */
+export interface ActionDefinition {
+  entity_id: string;
+  name: string;
+  icon: string | null;
+  description: string | null;
+}
+
+export interface ActionsResponse {
+  actions: ActionDefinition[];
+}
+
+export interface Info {
+  name: string;
+  version: string;
+  api_version: number;
+  min_client_api_version: number;
+  /** HA time zone, null until Core was reached. */
+  time_zone: string | null;
+  ha_connected: boolean;
+  app_available: boolean;
+}
+
+export interface Me {
+  id: string;
+  name: string;
+  is_admin: boolean;
+  /** Phase 6 (away detection); always false until then. */
+  away: boolean;
+}
+
+export const EXECUTION_RESULTS = [
+  'running',
+  'success',
+  'failed',
+  'skipped',
+  'missed',
+  'unavailable',
+  'expired',
+] as const;
+export type ExecutionResult = (typeof EXECUTION_RESULTS)[number];
+
+export interface RunNowResponse {
+  result: ExecutionResult;
+  reason: string | null;
+}
+
+/** Caps (SEC-05). */
+export const LIMITS = {
+  alarmsPerUser: 50,
+  actionsPerAlarm: 20,
+  actionsTotal: 1000,
+  labelLength: 100,
+} as const;

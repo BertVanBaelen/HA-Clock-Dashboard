@@ -1,0 +1,407 @@
+openapi: 3.1.0
+info:
+  title: Alarm Actions API
+  version: '1'
+  summary: REST API of the Alarm Actions add-on.
+  description: |
+    Served under `/api/v1` behind Home Assistant ingress. Every request must arrive through the
+    Supervisor ingress proxy, which sets the `X-Remote-User-Id` header; there are no routes
+    without login.
+
+    - Regular users see and change only their own alarms.
+    - Administrators can read every alarm (`editable: false` for other users' alarms) but
+      cannot change them.
+    - Unknown fields in request bodies are rejected (400).
+    - Requests without a body must not send `Content-Type: application/json`.
+    - Rate limit: 120 requests per minute per user (429 with `Retry-After`).
+servers:
+  - url: /api/v1
+security:
+  - ingress: []
+tags:
+  - name: general
+  - name: alarms
+paths:
+  /info:
+    get:
+      tags: [general]
+      operationId: getInfo
+      responses:
+        '200':
+          description: Add-on information.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Info' }
+        default: { $ref: '#/components/responses/Error' }
+  /me:
+    get:
+      tags: [general]
+      operationId: getMe
+      responses:
+        '200':
+          description: The current Home Assistant user.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        default: { $ref: '#/components/responses/Error' }
+  /actions:
+    get:
+      tags: [general]
+      operationId: listActions
+      description: Scripts carrying the action label (`alarm_action`), sorted by name.
+      responses:
+        '200':
+          description: Usable scripts.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [actions]
+                properties:
+                  actions:
+                    type: array
+                    items: { $ref: '#/components/schemas/ActionDefinition' }
+        '503': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+  /settings:
+    get:
+      tags: [general]
+      operationId: getSettings
+      description: Read-only; settings are changed on the add-on configuration page.
+      responses:
+        '200':
+          description: Global settings.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Settings' }
+        default: { $ref: '#/components/responses/Error' }
+  /alarms:
+    get:
+      tags: [alarms]
+      operationId: listAlarms
+      description: Own alarms; for administrators, all alarms.
+      responses:
+        '200':
+          description: Alarms.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [alarms]
+                properties:
+                  alarms:
+                    type: array
+                    items: { $ref: '#/components/schemas/Alarm' }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      tags: [alarms]
+      operationId: createAlarm
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlarmCreate' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlarmSaveResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+  /alarms/{id}:
+    parameters:
+      - $ref: '#/components/parameters/AlarmId'
+    get:
+      tags: [alarms]
+      operationId: getAlarm
+      responses:
+        '200':
+          description: The alarm.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Alarm' }
+        '404': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+    put:
+      tags: [alarms]
+      operationId: updateAlarm
+      description: |
+        Replaces the alarm. `revision` must equal the stored revision, otherwise 409 with
+        `current_revision`. Actions keep their `id` when it is sent back; new actions get one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlarmUpdate' }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlarmSaveResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [alarms]
+      operationId: deleteAlarm
+      responses:
+        '204':
+          description: Deleted.
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+  /alarms/{id}/skip:
+    parameters:
+      - $ref: '#/components/parameters/AlarmId'
+    post:
+      tags: [alarms]
+      operationId: skipAlarm
+      description: Skips the next occurrence of a repeating alarm. No request body.
+      responses:
+        '200':
+          description: The updated alarm.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Alarm' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+  /alarms/{id}/unskip:
+    parameters:
+      - $ref: '#/components/parameters/AlarmId'
+    post:
+      tags: [alarms]
+      operationId: unskipAlarm
+      description: Cancels a skip. No request body.
+      responses:
+        '200':
+          description: The updated alarm.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Alarm' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+components:
+  securitySchemes:
+    ingress:
+      type: apiKey
+      in: header
+      name: X-Remote-User-Id
+      description: Set by the Home Assistant Supervisor ingress proxy; not usable from outside.
+  parameters:
+    AlarmId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    Error:
+      description: |
+        Error. Codes: `invalid_input` / `bad_request` (400), `unauthorized` (401), `forbidden` (403),
+        `not_found` (404), `conflict` (409, with `current_revision`), `payload_too_large` (413),
+        `unsupported_media_type` (415), `limit_reached` / `script_unavailable` /
+        `not_repeating` (422), `rate_limited` (429), `internal_error` (500),
+        `service_unavailable` (503).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }
+        current_revision: { type: integer }
+        script_entity_id: { type: string }
+      additionalProperties: true
+    Weekday:
+      type: string
+      enum: [mon, tue, wed, thu, fri, sat, sun]
+    Timing:
+      type: string
+      enum: [before, at, after, after_dismiss]
+    Info:
+      type: object
+      required: [name, version, api_version, min_client_api_version, time_zone, ha_connected, app_available]
+      properties:
+        name: { type: string }
+        version: { type: string }
+        api_version: { type: integer }
+        min_client_api_version: { type: integer }
+        time_zone: { type: [string, 'null'] }
+        ha_connected: { type: boolean }
+        app_available: { type: boolean }
+    Me:
+      type: object
+      required: [id, name, is_admin, away]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        is_admin: { type: boolean }
+        away: { type: boolean }
+    ActionDefinition:
+      type: object
+      required: [entity_id, name, icon, description]
+      properties:
+        entity_id: { type: string, examples: [script.coffee] }
+        name: { type: string }
+        icon: { type: [string, 'null'] }
+        description: { type: [string, 'null'] }
+    Settings:
+      type: object
+      required:
+        - snooze_minutes
+        - dismiss_timeout_minutes
+        - grace_period_minutes
+        - action_label
+        - history_days
+        - history_max
+        - max_script_starts_per_minute
+        - min_script_interval_seconds
+        - log_level
+        - external_api_url
+      properties:
+        snooze_minutes: { type: integer }
+        dismiss_timeout_minutes: { type: integer }
+        grace_period_minutes: { type: integer }
+        action_label: { type: string }
+        history_days: { type: integer }
+        history_max: { type: integer }
+        max_script_starts_per_minute: { type: integer }
+        min_script_interval_seconds: { type: integer }
+        log_level: { type: string, enum: [trace, debug, info, warning, error, fatal] }
+        external_api_url: { type: [string, 'null'] }
+    AlarmAction:
+      type: object
+      required: [id, script_entity_id, timing, offset_minutes, delay_minutes, enabled]
+      properties:
+        id: { type: string, format: uuid }
+        script_entity_id: { type: string }
+        timing: { $ref: '#/components/schemas/Timing' }
+        offset_minutes: { type: [integer, 'null'] }
+        delay_minutes: { type: [integer, 'null'] }
+        enabled: { type: boolean }
+    AlarmActionInput:
+      type: object
+      additionalProperties: false
+      required: [script_entity_id, timing]
+      description: |
+        `offset_minutes` is required for `before` / `after` and not allowed otherwise.
+        `delay_minutes` is only allowed for `after_dismiss` (default 0).
+      properties:
+        id: { type: string, format: uuid, description: Send back to keep the action's identity. }
+        script_entity_id: { type: string, pattern: '^script\.[a-z0-9_]+$', maxLength: 255 }
+        timing: { $ref: '#/components/schemas/Timing' }
+        offset_minutes: { type: [integer, 'null'], minimum: 1, maximum: 720 }
+        delay_minutes: { type: [integer, 'null'], minimum: 0, maximum: 120 }
+        enabled: { type: boolean, default: true }
+    AlarmCreate:
+      allOf:
+        - $ref: '#/components/schemas/AlarmFields'
+      unevaluatedProperties: false
+    AlarmUpdate:
+      allOf:
+        - $ref: '#/components/schemas/AlarmFields'
+      type: object
+      required: [revision]
+      properties:
+        revision: { type: integer, minimum: 1 }
+      unevaluatedProperties: false
+    AlarmFields:
+      type: object
+      required: [time]
+      properties:
+        label: { type: string, maxLength: 100, default: '' }
+        time: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$', examples: ['06:30'] }
+        repeat_days:
+          type: array
+          maxItems: 7
+          uniqueItems: true
+          default: []
+          description: Empty for a one-time alarm.
+          items: { $ref: '#/components/schemas/Weekday' }
+        enabled: { type: boolean, default: true }
+        snooze_minutes:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 30
+          default: null
+          description: Null uses the global setting.
+        actions:
+          type: array
+          maxItems: 20
+          default: []
+          items: { $ref: '#/components/schemas/AlarmActionInput' }
+    Alarm:
+      type: object
+      required:
+        - id
+        - owner_user_id
+        - owner_name
+        - label
+        - time
+        - repeat_days
+        - enabled
+        - skip_next
+        - snooze_minutes
+        - actions
+        - revision
+        - change_seq
+        - created_at
+        - updated_at
+        - next_occurrence
+        - disabled_reason
+        - editable
+      properties:
+        id: { type: string, format: uuid }
+        owner_user_id: { type: string }
+        owner_name: { type: [string, 'null'] }
+        label: { type: string }
+        time: { type: string }
+        repeat_days:
+          type: array
+          items: { $ref: '#/components/schemas/Weekday' }
+        enabled: { type: boolean }
+        skip_next: { type: boolean }
+        snooze_minutes: { type: [integer, 'null'] }
+        actions:
+          type: array
+          items: { $ref: '#/components/schemas/AlarmAction' }
+        revision: { type: integer }
+        change_seq: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        next_occurrence:
+          type: [string, 'null']
+          format: date-time
+          description: Next time the alarm rings (UTC), null when disabled.
+        disabled_reason:
+          type: [string, 'null']
+          enum: [owner_inactive, fired, null]
+        editable: { type: boolean }
+    AlarmWarning:
+      type: object
+      required: [code, alarm_action_id, message]
+      properties:
+        code: { type: string, enum: [before_missed] }
+        alarm_action_id: { type: string, format: uuid }
+        message: { type: string }
+    AlarmSaveResponse:
+      type: object
+      required: [alarm, warnings]
+      properties:
+        alarm: { $ref: '#/components/schemas/Alarm' }
+        warnings:
+          type: array
+          items: { $ref: '#/components/schemas/AlarmWarning' }

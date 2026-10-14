@@ -148,7 +148,7 @@ Served by the dashboard add-on on two listeners with the same routes and the sam
 |---|---|
 | TR-API-01 | The API is versioned by the path (`/api/v1`) and by an integer `api_version` in `GET /info`. Additive changes keep the number; breaking changes bump it and are listed in the changelog |
 | TR-API-02 | Writes use optimistic concurrency via `revision` in the request body; a mismatch returns `409` |
-| TR-API-03 | Input validated with strict schemas (e.g. `voluptuous` or `pydantic`); unknown fields rejected (SEC-05) |
+| TR-API-03 | Input validated with strict schemas (`zod`, shared between server and panel); unknown fields rejected (SEC-05) |
 | TR-API-04 | An `occurrence_id` is deterministic: `<alarm_id>_<YYYYMMDDTHHMMSSZ>` (scheduled UTC time, [Occurrence](../analysis/objects/occurrence.md)), so the app can compute it offline. Test vectors for ids **and** schedule calculation (DST, weekdays, skip) are published in `docs/test-vectors/` |
 | TR-API-05 | `docs/openapi.yaml` is the contract for this repository, validated in CI |
 | TR-API-06 | `GET /info` returns `min_client_api_version` so a client such as the app can detect an incompatible dashboard and show a clear message |

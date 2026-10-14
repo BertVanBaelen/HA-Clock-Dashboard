@@ -1,0 +1,136 @@
+{
+  "description": "Schedule test vectors (TR-API-04). The dashboard add-on and the Android app must both pass them. Times: `reference` is the 'now' (UTC); `expected` is the next occurrence (UTC) strictly after it. A local time in a DST gap resolves to the first valid instant after it; an ambiguous time resolves to its first occurrence.",
+  "schedule": [
+    {
+      "name": "weekdays, next morning",
+      "time_zone": "Europe/Brussels",
+      "time": "06:45",
+      "repeat_days": ["mon", "tue", "wed", "thu", "fri"],
+      "skip_next": false,
+      "reference": "2026-10-14T10:16:00Z",
+      "expected": "2026-10-15T04:45:00Z"
+    },
+    {
+      "name": "weekdays with skip_next skips the first occurrence",
+      "time_zone": "Europe/Brussels",
+      "time": "06:45",
+      "repeat_days": ["mon", "tue", "wed", "thu", "fri"],
+      "skip_next": true,
+      "reference": "2026-10-14T10:16:00Z",
+      "expected": "2026-10-16T04:45:00Z"
+    },
+    {
+      "name": "weekdays, Friday after the alarm continues on Monday",
+      "time_zone": "Europe/Brussels",
+      "time": "06:45",
+      "repeat_days": ["mon", "tue", "wed", "thu", "fri"],
+      "skip_next": false,
+      "reference": "2026-10-16T05:00:00Z",
+      "expected": "2026-10-19T04:45:00Z"
+    },
+    {
+      "name": "single weekday",
+      "time_zone": "Europe/Brussels",
+      "time": "07:00",
+      "repeat_days": ["sat"],
+      "skip_next": false,
+      "reference": "2026-10-14T10:16:00Z",
+      "expected": "2026-10-17T05:00:00Z"
+    },
+    {
+      "name": "one-time later today",
+      "time_zone": "Europe/Brussels",
+      "time": "23:30",
+      "repeat_days": [],
+      "skip_next": false,
+      "reference": "2026-10-14T10:16:00Z",
+      "expected": "2026-10-14T21:30:00Z"
+    },
+    {
+      "name": "one-time, time already passed today: tomorrow",
+      "time_zone": "Europe/Brussels",
+      "time": "06:00",
+      "repeat_days": [],
+      "skip_next": false,
+      "reference": "2026-10-14T10:16:00Z",
+      "expected": "2026-10-15T04:00:00Z"
+    },
+    {
+      "name": "midnight, one minute before",
+      "time_zone": "Europe/Brussels",
+      "time": "00:00",
+      "repeat_days": [],
+      "skip_next": false,
+      "reference": "2026-10-14T21:59:00Z",
+      "expected": "2026-10-14T22:00:00Z"
+    },
+    {
+      "name": "exactly at the reference is not 'after'",
+      "time_zone": "Europe/Brussels",
+      "time": "06:45",
+      "repeat_days": [],
+      "skip_next": false,
+      "reference": "2026-10-15T04:45:00Z",
+      "expected": "2026-10-16T04:45:00Z"
+    },
+    {
+      "name": "spring forward: 02:30 does not exist, rings at 03:00",
+      "time_zone": "Europe/Brussels",
+      "time": "02:30",
+      "repeat_days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+      "skip_next": false,
+      "reference": "2026-03-28T12:00:00Z",
+      "expected": "2026-03-29T01:00:00Z"
+    },
+    {
+      "name": "fall back: 02:30 happens twice, rings at the first",
+      "time_zone": "Europe/Brussels",
+      "time": "02:30",
+      "repeat_days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+      "skip_next": false,
+      "reference": "2026-10-24T12:00:00Z",
+      "expected": "2026-10-25T00:30:00Z"
+    },
+    {
+      "name": "fall back: no second ring in the repeated hour",
+      "time_zone": "Europe/Brussels",
+      "time": "02:30",
+      "repeat_days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+      "skip_next": false,
+      "reference": "2026-10-25T00:45:00Z",
+      "expected": "2026-10-26T01:30:00Z"
+    },
+    {
+      "name": "New York spring forward",
+      "time_zone": "America/New_York",
+      "time": "02:30",
+      "repeat_days": [],
+      "skip_next": false,
+      "reference": "2026-03-07T12:00:00Z",
+      "expected": "2026-03-08T07:00:00Z"
+    },
+    {
+      "name": "time zone without DST",
+      "time_zone": "Asia/Tokyo",
+      "time": "07:15",
+      "repeat_days": ["sun"],
+      "skip_next": false,
+      "reference": "2026-10-14T10:16:00Z",
+      "expected": "2026-10-17T22:15:00Z"
+    }
+  ],
+  "occurrence_ids": [
+    {
+      "alarm_id": "6f0c1a52-4c5e-4a56-9d4b-2b1d6d6a9b10",
+      "scheduled_at": "2026-10-15T04:45:00Z",
+      "expected": "6f0c1a52-4c5e-4a56-9d4b-2b1d6d6a9b10_20261015T044500Z"
+    }
+  ],
+  "planned_run_ids": [
+    {
+      "occurrence_id": "6f0c1a52-4c5e-4a56-9d4b-2b1d6d6a9b10_20261015T044500Z",
+      "alarm_action_id": "0d6b9c3e-8f7a-4a3b-9b0e-6a2f1c4d5e60",
+      "expected": "6f0c1a52-4c5e-4a56-9d4b-2b1d6d6a9b10_20261015T044500Z_0d6b9c3e-8f7a-4a3b-9b0e-6a2f1c4d5e60"
+    }
+  ]
+}

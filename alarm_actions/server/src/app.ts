@@ -1,31 +1,36 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
+import Fastify, { LogController, type FastifyError, type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import type { ApiErrorBody } from '@alarm-actions/shared';
-import { HttpError, unauthorized } from './errors.js';
+import { HttpError } from './errors.js';
+import { apiRoutes, type ApiOptions } from './routes/api.js';
+import { ingressUserId } from './security.js';
 import type { Services } from './services.js';
+
+export { clientAddress } from './security.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
     svc: Services;
+    /** Every registered route, for the route-enumeration test (SEC-11). */
+    routeList: Array<{ method: string; url: string }>;
   }
 }
 
-/** Strips the IPv4-mapped IPv6 prefix (`::ffff:172.30.32.2`). */
-export function clientAddress(ip: string): string {
-  return ip.startsWith('::ffff:') ? ip.slice(7) : ip;
-}
-
-export async function buildApp(svc: Services): Promise<FastifyInstance> {
+export async function buildApp(svc: Services, options: ApiOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({
     loggerInstance: svc.log,
     // Only the Supervisor ingress proxy talks to this listener; never trust forwarded headers.
     trustProxy: false,
     bodyLimit: 64 * 1024,
-    disableRequestLogging: true,
+    logController: new LogController({ disableRequestLogging: true }),
   });
   app.decorate('svc', svc);
+  app.decorate('routeList', [] as Array<{ method: string; url: string }>);
+  app.addHook('onRoute', (route) => {
+    for (const method of [route.method].flat()) app.routeList.push({ method, url: route.url });
+  });
 
   app.setErrorHandler((err: FastifyError | Error, req, reply) => {
     let status = 500;
@@ -33,10 +38,12 @@ export async function buildApp(svc: Services): Promise<FastifyInstance> {
     if (err instanceof HttpError) {
       status = err.statusCode;
       body = { ...err.extra, error: err.code, message: err.message };
+      for (const [name, value] of Object.entries(err.headers)) reply.header(name, value);
     } else if ('statusCode' in err && err.statusCode && err.statusCode < 500) {
       status = err.statusCode;
       body = {
-        error: status === 413 ? 'payload_too_large' : 'bad_request',
+        error:
+          status === 413 ? 'payload_too_large' : status === 415 ? 'unsupported_media_type' : 'bad_request',
         message: err.message,
       };
     }
@@ -46,20 +53,18 @@ export async function buildApp(svc: Services): Promise<FastifyInstance> {
 
   // Every route requires an ingress identity from the Supervisor ingress proxy (SEC-01).
   app.addHook('onRequest', async (req) => {
-    const source = clientAddress(req.ip);
-    const userId = req.headers['x-remote-user-id'];
-    if (source !== svc.config.trustedProxy || typeof userId !== 'string' || !userId) {
-      throw unauthorized();
-    }
+    ingressUserId(req, svc.config.trustedProxy);
   });
+
+  await app.register(apiRoutes, { prefix: '/api/v1', ...options });
 
   const webDist = svc.config.webDistDir;
   if (webDist && fs.existsSync(path.join(webDist, 'index.html'))) {
     await app.register(fastifyStatic, {
       root: webDist,
       wildcard: false,
-      setHeaders: (res, filePath) => {
-        res.setHeader(
+      setHeaders: (reply, filePath) => {
+        reply.header(
           'Cache-Control',
           /[\\/]assets[\\/]/.test(filePath) ? 'public, max-age=31536000, immutable' : 'no-cache',
         );
