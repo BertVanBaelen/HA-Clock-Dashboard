@@ -7,7 +7,7 @@ Overview of all objects: [domain analysis](../domain-analysis.md).
 | Attribute | Type | Req | Notes |
 |---|---|---|---|
 | `id` | UUID | Yes | Server-generated, immutable |
-| `owner_user_id` | string | Yes | HA user id (from ingress), immutable |
+| `owner_user_id` | string | Yes | HA user id (from ingress or the validated HA token), immutable |
 | `label` | string (<=100) | No | Display name |
 | `time` | `HH:MM` local | Yes | In the HA time zone |
 | `repeat_days` | set of `mon`..`sun` | No | Empty = one-time alarm |

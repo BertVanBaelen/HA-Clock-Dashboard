@@ -41,7 +41,7 @@ Settings (global)        Client (app instance) *───1 User
 5. **Ownership:** users only modify their own alarms; admins may view all, but not change them.
 6. **Concurrency:** updates carry a `revision`; a mismatch returns 409 and the client must refetch.
 7. **Own alarms only:** users can only see and change their own alarms; others get "not found".
-8. **Login everywhere:** every request reaches the add-on through HA ingress and therefore requires a Home Assistant login, so exposing HA to the internet for the app adds no open logic.
+8. **Login everywhere:** every request requires a Home Assistant login: the panel through HA ingress, the app with its HA access token on the optional external API. Exposing the API to the internet for the app adds no route that works without login.
 9. **Script gate:** the add-on only starts labeled scripts, with no parameters from users.
 10. **Safety:** exactly-once execution, rate limiting and the missed-run policy prevent repeated or stale device actions.
 11. **Dashboard without app:** the dashboard add-on works fully on its own; the Android app is optional and is offered only when the second add-on ("Alarm Actions App") is installed.
@@ -92,7 +92,7 @@ Who may do what. "Other user" is any HA user who is not the owner. The "Admin" c
 | Change settings (add-on configuration page) | No | No | Yes | Rejected |
 
 **Rules**
-- The owner is fixed when the alarm is created and cannot be changed or supplied by the client; it always comes from the HA user that ingress identifies.
+- The owner is fixed when the alarm is created and cannot be changed or supplied by the client; it always comes from the HA user that ingress identifies or that HA confirms for the app's token.
 - "Not found" instead of "forbidden" for other people's alarms, so ids cannot be probed. Admins get 403 on writes because they can already see the alarm.
 - Admins have **view-only** access to other users' alarms. To stop another user's alarms, an admin deactivates that HA user (alarms are then disabled, see [Alarm](objects/alarm.md)).
 - Alarms of a deleted or deactivated user are disabled, and stay disabled after reactivation.
@@ -100,15 +100,26 @@ Who may do what. "Other user" is any HA user who is not the owner. The "Admin" c
 
 ## 5. Internet exposure
 
-The app must work outside the home, so Home Assistant itself is reachable on a public URL. The add-ons must not add anything open to the internet.
+The app must work outside the home. Home Assistant is reachable on a public URL for the login (e.g. `home.vanbaelen.dev`), and the dashboard add-on can offer its API on its own public URL (e.g. `api.vanbaelen.dev/clock`), both through a Cloudflare tunnel or another HTTPS reverse proxy. Neither adds anything usable without a Home Assistant login.
 
 | Part | Reachable without login? | Notes |
 |---|---|---|
-| Dashboard add-on API and panel | **No**, only through HA ingress, which requires HA login | No host port is exposed; used by panel and app |
+| Dashboard panel | **No**, only through HA ingress, which requires HA login | |
+| Dashboard API through ingress | **No** | Used by the panel |
+| Dashboard external API (optional) | **No**, every request needs a valid HA access token, checked with HA | Off until `external_api_url` is set; API routes only; used by the app. Reached by the tunnel over the internal Supervisor network, no host port by default |
 | App add-on (APK) | Not reachable from outside | Internal Supervisor network only; the APK is downloaded through the dashboard API |
 | Scheduler, executor | Not reachable | Runs inside the add-on container |
-| Webhooks, public URLs | **None** | |
+| Webhooks | **None** | |
 | Cloud services, outbound calls | **None** | Nothing leaves HA |
 
-**How the app gets access from outside:** it logs in with the user's HA account (OAuth through HA), receives a token, opens an ingress session for the dashboard add-on and calls the same API as the panel (see TR-APP-06 and [Android app](components/android-app.md)). HA's OAuth flow requires the app's `client_id` to be a URL whose page declares the app's redirect URI; this is a static page on the project's GitHub Pages and contains no data. A lost phone's token can be revoked in the HA user profile. Use a non-admin user for each phone.
+**How the app gets access from outside:** it logs in with the user's HA account (OAuth on the HA URL), receives an access token, and calls the external API URL with that token; the add-on asks HA who the token belongs to and applies the same access checks as for the panel (see TR-APP-06, TR-API-11..13 and [Android app](components/android-app.md)).
+
+Example with a Cloudflare tunnel (cloudflared add-on on the same HA host):
+
+| Public hostname | Routed to |
+|---|---|
+| `home.vanbaelen.dev` | `http://homeassistant:8123` (HA login, token refresh, panel) |
+| `api.vanbaelen.dev`, path `/clock` | `http://<dashboard add-on hostname>:8100` (external API) |
+
+The add-on option is then `external_api_url: https://api.vanbaelen.dev/clock`. HA's OAuth flow requires the app's `client_id` to be a URL whose page declares the app's redirect URI; this is a static page on the project's GitHub Pages and contains no data. A lost phone's token can be revoked in the HA user profile. Use a non-admin user for each phone.
 

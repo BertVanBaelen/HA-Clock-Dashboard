@@ -32,25 +32,25 @@ Requires **Home Assistant OS or Supervised** (add-ons need the Supervisor; Conta
 1. Settings → Add-ons → **Add-on Store** → ⋮ → **Repositories**
 2. Add `https://github.com/BertVanBaelen/HA-Clock-Dashboard`
 3. Install **Alarm Actions**, start it. "Alarms" appears in the sidebar for all users
-4. Optional, Android: install and start **Alarm Actions App**, then open the **Install app** tab in the Alarms panel and download the APK
+4. Optional, Android: install and start **Alarm Actions App**. To use the app away from home, set `external_api_url` on the Alarm Actions **Configuration** tab (e.g. `https://api.vanbaelen.dev/clock`) and route that hostname in your Cloudflare tunnel to the add-on, port 8100 (see the add-on's `DOCS.md`). Then open the **Install app** tab in the Alarms panel and download the APK
 5. Optional: change settings (snooze, timeouts, label, rate limit) on the add-on's **Configuration** tab (admins only)
 
 ## Quick start
 1. Create the scripts you want to use (e.g. `script.heat_bathroom`)
 2. Give each script the label `alarm_action`
 3. Open **Alarms** in the sidebar, create an alarm, add actions and timings
-4. For a ringing alarm on Android: install the app from the **Install app** tab and log in with your HA account
+4. For a ringing alarm on Android: install the app from the **Install app** tab, scan the setup QR code and log in with your HA account
 
 ## Security
 - Users can only see and change **their own alarms**; admins can view all alarms but not change other users' alarms
-- **Everything goes through Home Assistant ingress, so every request requires a Home Assistant login.** The add-ons expose no ports, so making HA reachable for the app outside your home adds no open logic. The app logs in with your HA account
+- **Every request requires a Home Assistant login.** The panel goes through Home Assistant ingress. For the app away from home, you can give the API its own address (for example `https://api.vanbaelen.dev/clock` through a Cloudflare tunnel); every call there must carry a valid HA token, which the add-on checks with HA. The app logs in with your HA account
 - A **non-admin** user is enough; create one per person or phone
 - Only scripts labeled `alarm_action` can be run, and without parameters from users
 - The APK contains no secrets or server address, and can only be downloaded by a logged-in user
 
 **Note:** anyone with access to alarms can cause *any* script with that label to run. Only label scripts that are safe, and give heating scripts their own auto-off.
 
-If HA is reachable from the internet: use HTTPS through a reverse proxy, enable MFA, enable `ip_ban`, and revoke a lost phone's token in the HA user profile. Details: [requirements/security-requirements.md](requirements/security-requirements.md).
+If HA is reachable from the internet: use HTTPS through a reverse proxy or Cloudflare tunnel (no Cloudflare Access login in front of the hostnames the app uses, no caching on the API hostname), enable MFA, enable `ip_ban`, and revoke a lost phone's token in the HA user profile. Details: [requirements/security-requirements.md](requirements/security-requirements.md).
 
 ## Documentation
 - [Functional requirements](requirements/functional-requirements.md)

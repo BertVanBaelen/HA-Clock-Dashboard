@@ -8,13 +8,14 @@
 - Sidebar panel (ingress) with tabs for alarms, history and, when the app add-on runs, "Install app".
 - Alarm editor with labeled scripts, timings, skip, snooze, enable/disable and "run now".
 - Scheduler and executor that start HA scripts exactly once, also across restarts.
-- API under `api/v1`, reachable only through ingress.
+- API under `api/v1`, reachable through ingress (panel) and, optionally, on an external URL for the app (e.g. `https://api.vanbaelen.dev/clock` through a Cloudflare tunnel).
 - HA event bus events `alarm_actions_alarm_dismissed`, `alarm_actions_alarm_snoozed`, `alarm_actions_action_executed`.
 - Storage in SQLite under `/data`, included in HA backups.
 
 ## Rules
 - Requires **HA OS or Supervised** (add-ons need the Supervisor). Container and Core installs are not supported.
-- **Identity:** the user comes from the ingress headers (`X-Remote-User-*`). Requests are accepted only from the Supervisor ingress proxy; no host ports are exposed.
+- **Identity:** on ingress, the user comes from the ingress headers (`X-Remote-User-*`), accepted only from the Supervisor ingress proxy. On the external API, the user comes from the HA access token, which the add-on checks with HA (`auth/current_user`, cached up to 60 s). Both feed the same access check.
+- **External API:** off until the admin sets `external_api_url`. Listens on container port 8100, serves only API routes under the URL's path (e.g. `/clock`), never the panel or `/debug`, with `Cache-Control: no-store` and no CORS. A tunnel add-on reaches it over the internal network; the host port stays unmapped unless the proxy runs on another machine.
 - Talks to HA Core over the websocket API with the Supervisor token; only the permissions it needs are requested.
 - Settings are add-on options ([Settings](../objects/settings.md)).
 - No HA entities are created. Events stay.
@@ -23,7 +24,8 @@
 | Decision | Why |
 |---|---|
 | **One add-on repository with two add-ons**: `alarm_actions` (dashboard) and `alarm_actions_app` (APK). One repository URL in the Add-on Store. HA OS/Supervised only | Matches how the user wants to install: the dashboard appears in the menu; the app is separate and optional |
-| **Identity from HA ingress**, no host ports | Every access requires an HA login; no own auth code |
+| **Identity from HA ingress** for the panel | Every access requires an HA login; no own auth code for the panel |
+| **Optional external API with HA-token check** for the app (own hostname such as `api.vanbaelen.dev/clock`), instead of the app opening ingress sessions | The user exposes services through a Cloudflare tunnel with one hostname per service. Ingress sessions from the app depend on Supervisor calls that a non-admin user may not be allowed to make; a bearer token is the normal way for a native app. The cost is a small, well-tested token check in the add-on |
 | Frontend **Lit + TypeScript + Vite**; the bundle is built when the add-on image is built, no build tools for users | Matches HA's own frontend |
 | Names: slugs `alarm_actions` / `alarm_actions_app`, events `alarm_actions_*` | Describes the function; avoids a later data migration |
 | **No HA entities**; the phone's next alarm shows in the Companion App's *Next alarm* sensor | The user does not want alarm entities; avoids exposing alarm times to all HA users |
@@ -31,7 +33,7 @@
 | License **MIT** | Common in the HA ecosystem |
 
 ## Requirements and features
-- Requirements: TR-PLT-01..10, TR-DAT-01, 02, 07, TR-HA-01, 02, 04, TR-API-01, 03, 05, 06, 09, 10, TR-UI-01..07, TR-OBS-01, 02, TR-QLT-01..07; FR-UI-05..08; SEC-01, 02, 07, 08, 10, 11, 12
+- Requirements: TR-PLT-01..10, TR-DAT-01, 02, 07, TR-HA-01, 02, 04, TR-API-01, 03, 05, 06, 09..14, TR-UI-01..07, TR-OBS-01, 02, TR-QLT-01..07; FR-UI-05..08; FR-SET-05; SEC-01, 02, 07, 08, 10, 11, 12, 13
 - [Phase 1](../../features/01-phase-foundation.md): all items
 - [Phase 2](../../features/02-phase-data-model-api.md): 2.9, 2.11, 2.12, 2.13, 2.15
 - [Phase 4](../../features/04-phase-dashboard-panel.md): 4.1, 4.9, 4.13, 4.14

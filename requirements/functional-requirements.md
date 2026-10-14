@@ -78,6 +78,7 @@ Settings are options of the dashboard add-on (Settings → Add-ons → Alarm Act
 | FR-SET-02 | Configurable dismissal timeout and restart grace period | S |
 | FR-SET-03 | Configurable label name for action scripts (default `alarm_action`) | C |
 | FR-SET-04 | Configurable rate limit and log level | C |
+| FR-SET-05 | Optional external API address (`external_api_url`, e.g. `https://api.vanbaelen.dev/clock`). Empty (default) = the API is only reachable through ingress and the app cannot be used | M |
 
 There are no Home Assistant entities ([Dashboard add-on](../analysis/components/dashboard-addon.md)). The phone's next alarm appears in the HA Companion App's own *Next alarm* sensor.
 
@@ -101,9 +102,10 @@ The Android app is offered by a second, optional add-on in the same repository, 
 | FR-APP-04 | The app registers itself and reports its time zone on every sync, so the dashboard can show connected devices, last sync time and away state | M |
 | FR-APP-05 | The app can ask which app version is bundled, to offer updates | S |
 | FR-APP-06 | The dashboard tells the app when it is too old or too new for the API, so the app shows a clear message | M |
+| FR-APP-07 | When the external API is set, the app can manage alarms from outside the home (e.g. through a Cloudflare tunnel) using the user's HA login. The Install app tab shows a setup QR code with the HA URL and the API URL | M |
 
 ## 9. Security
-See [security-requirements.md](security-requirements.md) (IDs `SEC-*`). Visible behaviour: users only see and change their own alarms (FR-ACC), and every endpoint requires a Home Assistant login.
+See [security-requirements.md](security-requirements.md) (IDs `SEC-*`). Visible behaviour: users only see and change their own alarms (FR-ACC), and every endpoint, including the external API for the app, requires a Home Assistant login.
 
 ## 10. Non-goals (v1)
 Creating HA automations, HA entities for alarms, HA Container or Core installations (no Supervisor, so no add-ons), iOS app, conditions on actions, push-based instant sync, multiple time zones per alarm, Play Store release.

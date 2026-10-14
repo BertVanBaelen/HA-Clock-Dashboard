@@ -4,8 +4,8 @@
 
 ## Features
 - Serves the APK, its version and checksum on the internal Supervisor network only.
-- The dashboard checks whether the app add-on runs and shows the "Install app" tab with a download button and a QR code.
-- The download is proxied through the dashboard API, so it requires an HA login.
+- The dashboard checks whether the app add-on runs and shows the "Install app" tab with a download button and a setup QR code (HA URL and API URL).
+- The download is proxied through the dashboard API (ingress for the panel, external API for the in-app updater), so it always requires an HA login.
 - Provides version info for the in-app updater.
 
 ## Rules
