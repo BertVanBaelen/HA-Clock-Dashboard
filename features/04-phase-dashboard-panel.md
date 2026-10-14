@@ -18,6 +18,8 @@
 | 4.12 | Warning in the editor when a *before* action will be skipped | FR-UI-09, FR-EXE-09 | Warning shown before save |
 | 4.13 | User text rendered safely (no unsafe HTML) | SEC-07 | Reviewed |
 | 4.14 | No external requests; panel bundle contains no data, only UI code | SEC-07, SEC-08 | Verified in network tab and bundle |
-| 4.16 | "Install app" tab placeholder wired to `GET /app/info` (full feature in phase 6) | FR-UI-07, TR-UI-06 | Tab hidden when no APK |
+| 4.15 | "Install app" tab placeholder wired to `GET /app/info` (full feature in phase 6) | FR-UI-07, TR-UI-06 | Tab hidden when no APK |
+| 4.16 | Per-alarm snooze duration field | FR-ALM-09 | Saved and shown |
+| 4.17 | Read-only view for admins on other users' alarms | FR-ACC-02, D19 | Edit controls hidden; API 403 handled |
 
 **Exit criteria:** A non-technical household member can create an alarm with actions on a phone, without touching YAML.

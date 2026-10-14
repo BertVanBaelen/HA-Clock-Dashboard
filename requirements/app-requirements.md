@@ -15,18 +15,20 @@ Priority: **M** must (v1), **S** should, **C** could.
 | AFR-RNG-01 | The alarm rings at the right time with **no network connection**, from a local copy of the alarms | M |
 | AFR-RNG-02 | The alarm shows a **full-screen** screen over the lock screen and turns the screen on | M |
 | AFR-RNG-03 | The alarm **rings through Do Not Disturb** | M |
-| AFR-RNG-04 | The user can snooze (default 9 min, from the server settings, adjustable per alarm) or stop the alarm | M |
-| AFR-RNG-05 | The user picks the alarm sound; volume ramps up gently (optional) | S |
+| AFR-RNG-04 | The user can snooze (the alarm's own snooze duration, else the server default of 9 min) or stop the alarm | M |
+| AFR-RNG-05 | The user picks the alarm sound (stored on the phone only, D23); volume ramps up gently (optional) | S |
 | AFR-RNG-06 | Alarms are rescheduled after reboot, app update, time change and time zone change | M |
 | AFR-RNG-07 | If the phone was off at alarm time, the missed alarm is shown on next start | S |
-| AFR-SYN-01 | The app syncs on open and periodically in the background, plus a manual "sync now" | M |
+| AFR-RNG-08 | When the phone's time zone differs from HA's, alarms ring at the local wall-clock time and the app shows "away: Home Assistant actions paused". No dismiss/snooze reports are sent while away (D20) | M |
+| AFR-SYN-01 | The app syncs on open, on time zone change, and periodically in the background (WorkManager, about every 15 min), plus a manual "sync now". On every sync it registers itself and reports its time zone (`POST /clients`) | M |
 | AFR-SYN-02 | Edits made offline are queued and sent when the connection returns; conflicts are shown to the user | S |
-| AFR-SYN-03 | Dismiss and snooze reports are queued when offline and sent later | M |
+| AFR-SYN-03 | Dismiss, snooze and timed-out reports are queued when offline and sent later | M |
 | AFR-SYN-04 | The app shows the sync state ("last synced", "offline") so the user knows alarms are current | M |
 | AFR-SET-01 | A first-run guide requests the needed permissions: exact alarms, full-screen intent, notifications, battery optimisation exemption | M |
 | AFR-SET-02 | The app shows a clear message when the dashboard is too old or too new for the app (API version check) | M |
 | AFR-SET-03 | The app checks for a newer bundled APK and offers to open the download | S |
 | AFR-SET-04 | A health check screen tells the user if something would stop the alarm from ringing (permission missing, battery restriction, DND channel blocked) | S |
+| AFR-SET-05 | The install guide explains allowing "Install unknown apps" for the browser, needed for the first install and every update of a sideloaded APK | M |
 
 ## 2. Technical requirements
 | ID | Requirement |
@@ -39,10 +41,12 @@ Priority: **M** must (v1), **S** should, **C** could.
 | ATR-RNG-03 | A full-screen intent starts the ringing activity over the lock screen. Permission handling covers Android 14+ restrictions on full-screen intents |
 | ATR-RNG-04 | A boot receiver reschedules all alarms; the app also reschedules on `ACTION_TIMEZONE_CHANGED`, `ACTION_TIME_CHANGED` and package replacement |
 | ATR-RNG-05 | Ringing never depends on the network: the engine reads only from Room |
-| ATR-RNG-06 | A guard against stuck ringing: the alarm stops after a maximum duration (default 10 min) and is reported as not dismissed |
-| ATR-SYN-01 | The app computes occurrence ids exactly as the server does (test vectors in `docs/`) so it can report events for occurrences offline |
-| ATR-SYN-02 | Sync uses `GET /sync?since=`; writes use optimistic `revision`; reports use the dismiss/snooze endpoints |
+| ATR-RNG-06 | A guard against stuck ringing: the alarm stops after a maximum duration (default 10 min) and is reported as `timed_out` |
+| ATR-RNG-07 | Exact alarms use the `USE_EXACT_ALARM` permission (allowed for alarm-clock apps; falls back to `SCHEDULE_EXACT_ALARM` handling). Full-screen intent permission on Android 14+ is verified at runtime, since grant rules differ for sideloaded apps |
+| ATR-SYN-01 | The app computes occurrence ids and alarm times exactly as the server does, verified against the published test vectors in `docs/` (ids, DST, weekdays, skip), so it can report events offline. While away it schedules in its own time zone (D20) |
+| ATR-SYN-02 | Sync uses `GET /sync?since=<change_seq>`; writes use optimistic `revision`; reports use the dismiss/snooze/timed-out endpoints |
 | ATR-SYN-03 | Network calls only to the user's HA URL over **HTTPS**; cleartext traffic is disabled in the network security config |
+| ATR-SYN-04 | HA OAuth requires the `client_id` to be a URL whose page declares the redirect URI. The project hosts a static page on GitHub Pages (e.g. `https://bertvanbaelen.github.io/HA-Clock-Dashboard/`) with `<link rel="redirect_uri" href="alarmactions://auth-callback">`; the app uses that `client_id` and handles the custom-scheme callback |
 | ATR-REL-01 | CI builds a release APK on tags, signs it with a keystore from GitHub secrets, and hands it to the integration release pipeline (TR-APP-02) |
 | ATR-REL-02 | The keystore is backed up outside GitHub; losing it means users must uninstall to update |
 | ATR-REL-03 | `versionCode` increases on every release; `versionName` matches the integration version |
@@ -55,7 +59,7 @@ Priority: **M** must (v1), **S** should, **C** could.
 | ASEC-01 | Login through HA's OAuth flow; tokens stored in the Android Keystore-backed encrypted storage, never in plain preferences or logs |
 | ASEC-02 | The app only talks to the configured HA URL over HTTPS; certificate validation is not disabled |
 | ASEC-03 | The APK contains no secrets, tokens or server address |
-| ASEC-04 | The app uses a non-admin HA user; it is documented that admin accounts must not be used on phones |
+| ASEC-04 | The app uses a non-admin HA user; it is documented that admin accounts must not be used on phones. An admin who wants the app uses a separate non-admin account, which then owns their phone alarms |
 | ASEC-05 | Local alarm data is excluded from cloud backups, or backups are disabled for the app |
 | ASEC-06 | Tokens are deleted on logout; a revoked token ends sync but alarms already stored keep ringing until the user logs out |
 | ASEC-07 | The signing keystore is a CI secret and is never committed |

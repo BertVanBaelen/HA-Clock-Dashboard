@@ -11,6 +11,7 @@ A Home Assistant (HACS) custom integration that adds an **alarm planner** to you
 - API for dismiss/snooze reports and for the Android app
 - An **Install app** tab to download the Android app, which adds a full-screen alarm that rings through Do Not Disturb
 - Works without the app: the dashboard is fully usable on its own
+- **Away detection:** when your phone is in another time zone, it rings at local time and Home Assistant pauses your actions
 
 ## What it does not do
 - Ring a phone from the dashboard (ringing is the Android app's job)
@@ -27,6 +28,8 @@ HACS can only manage one integration per repository, so this repo contains **one
 | APK served to users | Built by CI and bundled into the release zip |
 
 ## Installation (HACS custom repository)
+Requires Home Assistant **2026.3** or newer.
+
 1. HACS → ⋮ → **Custom repositories**
 2. Add `https://github.com/BertVanBaelen/HA-Clock-Dashboard`, category **Integration**
 3. Install, then restart Home Assistant
@@ -40,7 +43,7 @@ HACS can only manage one integration per repository, so this repo contains **one
 4. For a ringing alarm on Android: install the app from the **Install app** tab and log in with your HA account
 
 ## Security
-- Users can only see and change **their own alarms**
+- Users can only see and change **their own alarms**; admins can view all alarms but not change other users' alarms
 - **Every endpoint requires a Home Assistant login.** Nothing is open to the internet, so making HA reachable for the app outside your home adds no open logic. The app logs in with your HA account
 - A **non-admin** user is enough; create one per person or phone
 - Only scripts labeled `alarm_action` can be run, and without parameters from users
@@ -63,6 +66,7 @@ If HA is reachable from the internet: use HTTPS through a reverse proxy, enable 
 ```
 custom_components/alarm_actions/   integration code (to be created)
   app/                             APK placed here by release CI (not in git)
+  brand/                           integration icon and logo
 android/                           Android app source (Kotlin)
 requirements/                      functional, technical, app, security requirements
 analysis/                          domain analysis and decision log

@@ -1,6 +1,6 @@
 # Feature Roadmap
 
-Scope: this repository (`HA-Clock-Dashboard`) has two tracks that ship together in one release: the **dashboard integration** (phases 1-7) and the **Android app** (A1-A5, in `app/`). Requirement IDs refer to [`../requirements`](../requirements).
+Scope: this repository (`HA-Clock-Dashboard`) has two tracks that ship together in one release: the **dashboard integration** (phases 1-7) and the **Android app** (A1-A5, in `android/`). Requirement IDs refer to [`../requirements`](../requirements).
 
 ## Dashboard track (`custom_components/alarm_actions`)
 | Phase | Name | Outcome | Status |

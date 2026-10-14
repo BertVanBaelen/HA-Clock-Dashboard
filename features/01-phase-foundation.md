@@ -11,6 +11,7 @@
 | 1.5 | Translations scaffold (English) | FR-UI-08 | `translations/en.json` present |
 | 1.6 | Test harness with `pytest-homeassistant-custom-component` | TR-QLT-01 | One passing setup test |
 | 1.7 | MIT `LICENSE` and issue templates | D8 | Files present |
-| 1.8 | `manifest.json` with all keys HACS requires, `brand/icon.png`, `hacs.json` | TR-PLT-07, 08 | HACS validation action passes |
+| 1.8 | `manifest.json` with all keys HACS requires, `custom_components/alarm_actions/brand/icon.png`, `hacs.json` with `homeassistant: 2026.3` | TR-PLT-03, 07, 08, D27 | HACS validation action passes |
+| 1.9 | Release check: `manifest.json` version equals the tag | TR-QLT-07 | Mismatched tag fails the workflow |
 
 **Exit criteria:** Add repo as a custom HACS repository, install, restart, add integration, no errors in the log.

@@ -10,10 +10,11 @@ IDs are stable; reference them in issues and PRs.
 | FR-ALM-02 | An alarm can repeat on selected weekdays, or be one-time | M |
 | FR-ALM-03 | An alarm can be enabled/disabled without deleting it | M |
 | FR-ALM-04 | A user can edit and delete alarms | M |
-| FR-ALM-05 | A user can skip only the next occurrence of a repeating alarm | M |
-| FR-ALM-06 | A one-time alarm disables itself after it has fired | M |
+| FR-ALM-05 | A user can skip only the next occurrence of a repeating alarm (not available for one-time alarms) | M |
+| FR-ALM-06 | A one-time alarm disables itself after it has fired; actions of the occurrence that fired still complete | M |
 | FR-ALM-07 | The panel shows the next trigger time of each alarm | M |
 | FR-ALM-08 | Alarms can be duplicated | C |
+| FR-ALM-09 | An alarm can have its own snooze duration; otherwise the default from settings applies (D23) | S |
 
 ## 2. Actions
 | ID | Requirement | Prio |
@@ -33,19 +34,23 @@ IDs are stable; reference them in issues and PRs.
 |---|---|---|
 | FR-EXE-01 | Actions run at the correct time without any phone or app being involved | M |
 | FR-EXE-02 | *After dismissal* actions run only when a dismissal is reported (plus configurable delay, default 0) | M |
-| FR-EXE-03 | If no dismissal arrives within a timeout (default 60 min after alarm time), *after dismissal* actions are skipped and logged | M |
+| FR-EXE-03 | If no dismissal arrives within a timeout (default 60 min after alarm time), or the phone reports that ringing timed out, *after dismissal* actions are skipped and logged as expired | M |
 | FR-EXE-04 | Skipping an occurrence skips all its actions (before, at, after, after dismissal) | M |
 | FR-EXE-05 | After a HA restart, actions still due are executed if within a grace period (default 5 min); older ones are marked missed | M |
 | FR-EXE-06 | Every execution result (success, failed, skipped, missed) is recorded in a history | M |
 | FR-EXE-07 | Snoozing does not shift *before* / *at* / *after* actions; it is only logged | M |
 | FR-EXE-08 | A user can trigger one of their own attached actions manually from the panel ("run now") for testing | S |
 | FR-EXE-09 | If saving or editing an alarm leaves a *before* action in the past for the next occurrence, that action is skipped for that occurrence and recorded as `missed` (decision D3) | M |
-| FR-EXE-10 | Execution is rate limited and duplicate starts are suppressed to protect devices (see security requirements) | M |
+| FR-EXE-10 | Execution is rate limited and duplicate starts are suppressed to protect devices. Starts beyond the limit are dropped and logged as skipped (D21) | M |
+| FR-EXE-11 | Dismissing an alarm up to 60 min before it rings cancels its *before* / *at* / *after* actions not yet run; *after dismissal* actions run from the dismissal time (D22) | M |
+| FR-EXE-12 | When the owner's phone is in a different time zone than HA, no actions run for that owner's alarms; they are logged as skipped ("user away") and the panel shows the away state (D20) | M |
+| FR-EXE-13 | A dismissal reported late by an offline phone does not start an *after dismissal* action whose time is already past by more than the grace period; it is logged as missed | M |
+| FR-EXE-14 | Editing an alarm while it is ringing or snoozed does not cancel the running occurrence's remaining actions, except actions that were removed or disabled | M |
 
 ## 4. Dismiss and snooze events
 | ID | Requirement | Prio |
 |---|---|---|
-| FR-EVT-01 | A client (app) can report *snoozed* and *dismissed* for a specific occurrence | M |
+| FR-EVT-01 | A client (app) can report *snoozed*, *dismissed* and *timed out* (stopped ringing without dismissal) for a specific occurrence | M |
 | FR-EVT-02 | Duplicate reports for the same occurrence are ignored (idempotent) | M |
 | FR-EVT-03 | The panel allows manually marking an alarm as dismissed | S |
 | FR-EVT-04 | Dismiss/snooze events are fired on the HA event bus for use in other automations | S |
@@ -62,6 +67,7 @@ IDs are stable; reference them in issues and PRs.
 | FR-UI-07 | An "Install app" tab lets the user download the Android app. It appears only when an APK is bundled in the installed release and the option "Offer Android app" is on (section 9) | S |
 | FR-UI-08 | Translations: English at minimum | M |
 | FR-UI-09 | When an edit causes a *before* action to be skipped for the next occurrence, the UI shows a warning before saving (FR-EXE-09) | M |
+| FR-UI-10 | The panel shows the user's connected phones with their last sync time, and an "away, actions paused" banner when FR-EXE-12 applies | S |
 
 ## 6. Settings
 | ID | Requirement | Prio |
@@ -80,10 +86,10 @@ IDs are stable; reference them in issues and PRs.
 | ID | Requirement | Prio |
 |---|---|---|
 | FR-ACC-01 | Every alarm has an owner (the HA user who created it) | M |
-| FR-ACC-02 | Users see and edit only their own alarms and history; admins can see and edit all | M |
-| FR-ACC-04 | Alarms of a deleted or deactivated HA user stop running and are disabled | M |
-| FR-ACC-05 | Requests for alarms the user may not access behave as "not found" | M |
+| FR-ACC-02 | Users see and edit only their own alarms and history; admins can **view** all alarms and history but not change other users' alarms (D19) | M |
 | FR-ACC-03 | Shared household alarms visible to all users | C |
+| FR-ACC-04 | Alarms of a deleted or deactivated HA user stop running and are disabled; they stay disabled if the user is reactivated (D24) | M |
+| FR-ACC-05 | Requests for alarms the user may not access behave as "not found" | M |
 
 ## 9. App distribution and sync (server side)
 The Android app itself is specified in [app-requirements.md](app-requirements.md).
@@ -93,7 +99,7 @@ The Android app itself is specified in [app-requirements.md](app-requirements.md
 | FR-APP-01 | A logged-in user can download the Android APK from the panel | S |
 | FR-APP-02 | The tab and download are hidden when no APK is bundled or the option "Offer Android app" is off | S |
 | FR-APP-03 | The app can fetch alarms changed since its last sync, including deletions | M |
-| FR-APP-04 | The app can register itself so the dashboard can show connected devices and last sync time | C |
+| FR-APP-04 | The app registers itself and reports its time zone on every sync, so the dashboard can show connected devices, last sync time and away state | M |
 | FR-APP-05 | The app can ask which app version is bundled, to offer updates | S |
 | FR-APP-06 | The dashboard tells the app when it is too old or too new for the API, so the app shows a clear message | M |
 
@@ -104,4 +110,4 @@ See [security-requirements.md](security-requirements.md) (IDs `SEC-*`). Visible 
 Creating HA automations, iOS app, conditions on actions, push-based instant sync, multiple time zones per alarm, Play Store release.
 
 ## Decisions on earlier open questions
-See [../analysis/decisions.md](../analysis/decisions.md): alarms are per user (D1), dismissal timeout 60 minutes (D2), late *before* actions are skipped with a warning (D3).
+See [../analysis/decisions.md](../analysis/decisions.md): alarms are per user (D1), dismissal timeout 60 minutes (D2), late *before* actions are skipped with a warning (D3), admins view-only (D19), away by time zone (D20), rate limit drops (D21), early dismissal (D22).
