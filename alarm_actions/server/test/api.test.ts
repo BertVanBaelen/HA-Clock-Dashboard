@@ -2,7 +2,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { mdiRadiator, mdiScriptText } from '@mdi/js';
-import type { Alarm, AlarmSaveResponse } from '@alarm-actions/shared';
+import type { Alarm, AlarmSaveResponse, PlannedAction } from '@alarm-actions/shared';
 import { AppProbe } from '../src/appProbe.js';
 import { mdiPath } from '../src/ha/scripts.js';
 import { createLogger } from '../src/logger.js';
@@ -73,7 +73,6 @@ describe('alarm CRUD', () => {
       skip_next: false,
       revision: 1,
       change_seq: 1,
-      editable: true,
       disabled_reason: null,
       next_occurrence: '2026-10-15T04:45:00.000Z',
     });
@@ -206,7 +205,7 @@ describe('access control (analysis §4)', () => {
   type Actor = 'user-a' | 'user-b' | 'admin';
   const actors: Actor[] = ['user-a', 'user-b', 'admin'];
 
-  /** Expected status per operation for the owner (user-a), another user and an admin. */
+  /** Expected status per operation for the owner (user-a), another user and an admin (no extra rights). */
   const matrix: Array<{
     name: string;
     method: 'GET' | 'PUT' | 'DELETE' | 'POST';
@@ -218,38 +217,38 @@ describe('access control (analysis §4)', () => {
       name: 'read one',
       method: 'GET',
       path: (id) => `/api/v1/alarms/${id}`,
-      expected: { 'user-a': 200, 'user-b': 404, admin: 200 },
+      expected: { 'user-a': 200, 'user-b': 404, admin: 404 },
     },
     {
       name: 'edit',
       method: 'PUT',
       path: (id) => `/api/v1/alarms/${id}`,
       body: (alarm) => updateBody(alarm, { label: 'Changed' }),
-      expected: { 'user-a': 200, 'user-b': 404, admin: 403 },
+      expected: { 'user-a': 200, 'user-b': 404, admin: 404 },
     },
     {
       name: 'skip',
       method: 'POST',
       path: (id) => `/api/v1/alarms/${id}/skip`,
-      expected: { 'user-a': 200, 'user-b': 404, admin: 403 },
+      expected: { 'user-a': 200, 'user-b': 404, admin: 404 },
     },
     {
       name: 'unskip',
       method: 'POST',
       path: (id) => `/api/v1/alarms/${id}/unskip`,
-      expected: { 'user-a': 200, 'user-b': 404, admin: 403 },
+      expected: { 'user-a': 200, 'user-b': 404, admin: 404 },
     },
     {
       name: 'run now',
       method: 'POST',
       path: (id, alarm) => `/api/v1/alarms/${id}/actions/${alarm.actions[0]!.id}/run`,
-      expected: { 'user-a': 200, 'user-b': 404, admin: 403 },
+      expected: { 'user-a': 200, 'user-b': 404, admin: 404 },
     },
     {
       name: 'delete',
       method: 'DELETE',
       path: (id) => `/api/v1/alarms/${id}`,
-      expected: { 'user-a': 204, 'user-b': 404, admin: 403 },
+      expected: { 'user-a': 204, 'user-b': 404, admin: 404 },
     },
   ];
 
@@ -274,7 +273,7 @@ describe('access control (analysis §4)', () => {
     }
   }
 
-  it('lists own alarms only; admins see everyone, read-only', async () => {
+  it('lists own alarms only, also for admins', async () => {
     harness = await startHarness({ now: () => NOW });
     const a = await create(harness, 'user-a');
     const admins = await create(harness, 'admin');
@@ -283,13 +282,64 @@ describe('access control (analysis §4)', () => {
         .alarms;
     expect((await list('user-a')).map((x) => x.id)).toEqual([a.id]);
     expect(await list('user-b')).toEqual([]);
-    const all = await list('admin');
-    expect(all.map((x) => [x.id, x.editable]).sort()).toEqual(
-      [
-        [a.id, false],
-        [admins.id, true],
-      ].sort(),
-    );
+    expect((await list('admin')).map((x) => x.id)).toEqual([admins.id]);
+  });
+
+  it("shows everyone the upcoming actions of other users' alarms, sorted by time", async () => {
+    harness = await startHarness({ now: () => NOW });
+    await create(harness, 'user-a');
+    await create(harness, 'user-a', {
+      time: '13:00',
+      actions: [
+        { script_entity_id: 'script.coffee', timing: 'at' },
+        { script_entity_id: 'script.heat_bathroom', timing: 'before', offset_minutes: 60 },
+        { script_entity_id: 'script.coffee', timing: 'after', offset_minutes: 5, enabled: false },
+      ],
+    });
+    await create(harness, 'user-a', { ...workAlarm, time: '05:00', enabled: false });
+    await create(harness, 'user-b', {
+      time: '08:00',
+      actions: [{ script_entity_id: 'script.coffee', timing: 'at' }],
+    });
+    const planned = async (user: string) =>
+      (
+        (await harness!.request(user, 'GET', '/api/v1/planned')).json() as {
+          planned: PlannedAction[];
+        }
+      ).planned;
+
+    expect(await planned('user-b')).toEqual([
+      // 13:00 today: the "before" action at 12:00 is already past (now is 12:16).
+      {
+        owner_name: 'Alice',
+        script_entity_id: 'script.coffee',
+        script_name: 'Coffee',
+        icon_path: mdiScriptText,
+        timing: 'at',
+        run_at: '2026-10-14T11:00:00.000Z',
+        alarm_at: '2026-10-14T11:00:00.000Z',
+        delay_minutes: null,
+      },
+      {
+        owner_name: 'Alice',
+        script_entity_id: 'script.heat_bathroom',
+        script_name: 'Heat bathroom',
+        icon_path: mdiRadiator,
+        timing: 'before',
+        run_at: '2026-10-15T04:35:00.000Z',
+        alarm_at: '2026-10-15T04:45:00.000Z',
+        delay_minutes: null,
+      },
+      expect.objectContaining({
+        script_entity_id: 'script.coffee',
+        timing: 'after_dismiss',
+        run_at: null,
+        alarm_at: '2026-10-15T04:45:00.000Z',
+        delay_minutes: 20,
+      }),
+    ]);
+    // Own alarms are not in the list.
+    expect((await planned('user-a')).map((p) => p.owner_name)).toEqual(['Bob']);
   });
 
   it('makes the creator the owner, even for admins', async () => {
@@ -305,13 +355,11 @@ describe('access control (analysis §4)', () => {
   it('answers 404 for malformed and unknown ids', async () => {
     harness = await startHarness({ now: () => NOW });
     for (const id of ['nope', '00000000-0000-4000-8000-000000000000']) {
-      expect((await harness.request('user-a', 'GET', `/api/v1/alarms/${id}`)).statusCode).toBe(
-        404,
-      );
+      expect((await harness.request('user-a', 'GET', `/api/v1/alarms/${id}`)).statusCode).toBe(404);
     }
   });
 
-  it.each(['/api/v1/actions', '/api/v1/settings', '/api/v1/info', '/api/v1/me'])(
+  it.each(['/api/v1/actions', '/api/v1/settings', '/api/v1/info', '/api/v1/me', '/api/v1/planned'])(
     '%s is readable by every user',
     async (url) => {
       harness = await startHarness({ now: () => NOW });
@@ -371,7 +419,7 @@ describe('identity (SEC-01, SEC-02, SEC-11)', () => {
     harness.fake.state.users.push({ id: 'user-d', name: 'Dave', is_active: true, group_ids: [] });
     c.advance(11_000);
     const res = await harness.request('user-d', 'GET', '/api/v1/me');
-    expect(res.json()).toEqual({ id: 'user-d', name: 'Dave', is_admin: false, away: false });
+    expect(res.json()).toEqual({ id: 'user-d', name: 'Dave', away: false });
   });
 
   it('answers 503 while Home Assistant users were never loaded', async () => {
@@ -380,13 +428,9 @@ describe('identity (SEC-01, SEC-02, SEC-11)', () => {
     expect(res.statusCode).toBe(503);
   });
 
-  it('reports admin status', async () => {
+  it('returns the user name', async () => {
     harness = await startHarness({ now: () => NOW });
-    expect((await harness.request('admin', 'GET', '/api/v1/me')).json()).toMatchObject({
-      is_admin: true,
-    });
     expect((await harness.request('user-a', 'GET', '/api/v1/me')).json()).toMatchObject({
-      is_admin: false,
       name: 'Alice',
     });
   });
@@ -412,7 +456,10 @@ describe('input validation (SEC-05)', () => {
     ['bad time', { ...workAlarm, time: '25:00' }],
     ['numeric weekday', { ...workAlarm, repeat_days: [1] }],
     ['label too long', { ...workAlarm, label: 'x'.repeat(101) }],
-    ['missing offset', { time: '06:00', actions: [{ script_entity_id: 'script.coffee', timing: 'before' }] }],
+    [
+      'missing offset',
+      { time: '06:00', actions: [{ script_entity_id: 'script.coffee', timing: 'before' }] },
+    ],
     ['not a script', { time: '06:00', actions: [{ script_entity_id: 'light.x', timing: 'at' }] }],
     ['array body', [workAlarm]],
   ])('rejects %s with 400', async (_name, body) => {
@@ -620,6 +667,22 @@ describe('app add-on probe (TR-APP-03)', () => {
     }
   });
 
+  it('peek answers from the cache at once and refreshes in the background', async () => {
+    const server = http.createServer((_req, res) => {
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ version: '1.2.0' }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+      const probe = new AppProbe(url, createLogger('silent'));
+      expect(probe.peek()).toBe(false);
+      await waitFor(() => probe.peek());
+    } finally {
+      server.close();
+    }
+  });
+
   it('reports unavailable without a URL or when nothing listens', async () => {
     expect(await new AppProbe(null, createLogger('silent')).info()).toEqual({
       available: false,
@@ -632,6 +695,7 @@ describe('app add-on probe (TR-APP-03)', () => {
   it('serves /app/info and info.app_available to logged-in users only', async () => {
     harness = await startHarness({ now: () => NOW });
     harness.services.appProbe.info = async () => ({ available: true, version: '1.0.0' });
+    harness.services.appProbe.peek = () => true;
     const res = await harness.request('user-a', 'GET', '/api/v1/app/info');
     expect(res.json()).toEqual({ available: true, version: '1.0.0' });
     const info = await harness.request('user-a', 'GET', '/api/v1/info');

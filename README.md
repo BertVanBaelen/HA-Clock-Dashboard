@@ -42,7 +42,7 @@ Requires **Home Assistant OS or Supervised** (add-ons need the Supervisor; Conta
 4. For a ringing alarm on Android: install the app from the **Install app** tab, scan the setup QR code and log in with your HA account
 
 ## Security
-- Users can only see and change **their own alarms**; admins can view all alarms but not change other users' alarms
+- Users can only see and change **their own alarms** (also admins); everyone sees the upcoming actions planned by other users, with their time
 - **Every request requires a Home Assistant login.** The panel goes through Home Assistant ingress. For the app away from home, you can give the API its own address (for example `https://api.vanbaelen.dev/clock` through a Cloudflare tunnel); every call there must carry a valid HA token, which the add-on checks with HA. The app logs in with your HA account
 - A **non-admin** user is enough; create one per person or phone
 - Only scripts labeled `alarm_action` can be run, and without parameters from users

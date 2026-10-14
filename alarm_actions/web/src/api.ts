@@ -1,4 +1,5 @@
 import type { ApiErrorBody } from '@alarm-actions/shared';
+import { t } from './strings';
 
 export class ApiError extends Error {
   constructor(
@@ -32,7 +33,7 @@ export async function api<T>(
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
   } catch {
-    throw new ApiError(0, 'network', 'The add-on cannot be reached. Check your connection.');
+    throw new ApiError(0, 'network', t.networkError);
   }
   if (res.status === 204) return undefined as T;
   const data = (await res.json().catch(() => null)) as (T & Partial<ApiErrorBody>) | null;
@@ -40,7 +41,7 @@ export async function api<T>(
     throw new ApiError(
       res.status,
       data?.error ?? 'unknown',
-      data?.message ?? `Request failed (${res.status}).`,
+      data?.message ?? t.requestFailed(res.status),
       data,
     );
   }
@@ -48,5 +49,5 @@ export async function api<T>(
 }
 
 export function errorMessage(err: unknown): string {
-  return err instanceof ApiError ? err.message : 'Something went wrong.';
+  return err instanceof ApiError ? err.message : t.genericError;
 }

@@ -6,7 +6,7 @@
 
 ## Features
 - Sidebar panel (ingress) with tabs for alarms, history and, when the app add-on runs, "Install app".
-- Alarm editor with labeled scripts, timings, skip, snooze, enable/disable and "run now".
+- Alarm editor with labeled scripts, timings, skip, enable/disable and "run now" (snooze is set in the Android app).
 - Scheduler and executor that start HA scripts exactly once, also across restarts.
 - API under `api/v1`, reachable through ingress (panel) and, optionally, on an external URL for the app (e.g. `https://api.vanbaelen.dev/clock` through a Cloudflare tunnel).
 - HA event bus events `alarm_actions_alarm_dismissed`, `alarm_actions_alarm_snoozed`, `alarm_actions_action_executed`.
@@ -38,6 +38,6 @@
 - [Phase 1](../../features/01-phase-foundation.md): all items
 - [Phase 2](../../features/02-phase-data-model-api.md): 2.9, 2.11, 2.12, 2.13, 2.15
 - [Phase 4](../../features/04-phase-dashboard-panel.md): 4.1, 4.9, 4.13, 4.14
-- [Phase 5](../../features/05-phase-dismiss-history.md): 5.9
+- [Phase 5](../../features/05-phase-history-logging.md): 5.3
 - [Phase 6](../../features/06-phase-app-addon-sync.md): 6.7, 6.8
 - [Phase 7](../../features/07-phase-hardening-release.md): all items except the app ones

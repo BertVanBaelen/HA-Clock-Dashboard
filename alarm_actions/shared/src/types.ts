@@ -75,8 +75,28 @@ export interface Alarm {
   next_occurrence: string | null;
   /** Why the system disabled the alarm, when it did. */
   disabled_reason: DisabledReason;
-  /** False for an admin looking at another user's alarm. */
-  editable: boolean;
+}
+
+/**
+ * An upcoming action of another user's alarm (`GET /planned`): only who, what and when, so
+ * everyone knows what will happen in the house. Other users' alarms themselves stay private.
+ */
+export interface PlannedAction {
+  owner_name: string | null;
+  script_entity_id: string;
+  /** Script name, null when the script is gone or lost its label. */
+  script_name: string | null;
+  icon_path: string | null;
+  timing: Timing;
+  /** When the action runs (UTC ISO); null for `after_dismiss`, which follows the dismissal. */
+  run_at: string | null;
+  /** When the alarm rings (UTC ISO). */
+  alarm_at: string;
+  delay_minutes: number | null;
+}
+
+export interface PlannedResponse {
+  planned: PlannedAction[];
 }
 
 /** Response of a create/update: the alarm plus warnings (for example `before` runs missed). */
@@ -125,7 +145,6 @@ export interface AppInfo {
 export interface Me {
   id: string;
   name: string;
-  is_admin: boolean;
   /** Phase 6 (away detection); always false until then. */
   away: boolean;
 }

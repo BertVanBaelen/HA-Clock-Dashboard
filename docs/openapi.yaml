@@ -8,9 +8,10 @@ info:
     Supervisor ingress proxy, which sets the `X-Remote-User-Id` header; there are no routes
     without login.
 
-    - Regular users see and change only their own alarms.
-    - Administrators can read every alarm (`editable: false` for other users' alarms) but
-      cannot change them.
+    - Every user (also administrators) sees and changes only their own alarms; other users'
+      alarms behave as not found (404).
+    - `GET /planned` shows every user the upcoming actions of other users' alarms (who, which
+      script, when), without the alarms themselves.
     - Unknown fields in request bodies are rejected (400).
     - Requests without a body must not send `Content-Type: application/json`.
     - Rate limit: 120 requests per minute per user (429 with `Retry-After`).
@@ -93,7 +94,7 @@ paths:
     get:
       tags: [alarms]
       operationId: listAlarms
-      description: Own alarms; for administrators, all alarms.
+      description: Own alarms only.
       responses:
         '200':
           description: Alarms.
@@ -124,6 +125,27 @@ paths:
         '400': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+  /planned:
+    get:
+      tags: [alarms]
+      operationId: listPlanned
+      description: >-
+        Upcoming actions of other users' enabled alarms (next occurrence only, enabled actions,
+        not yet run), sorted by time. `after_dismiss` actions have no fixed time and sort by
+        alarm time plus delay.
+      responses:
+        '200':
+          description: Planned actions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [planned]
+                properties:
+                  planned:
+                    type: array
+                    items: { $ref: '#/components/schemas/PlannedAction' }
         default: { $ref: '#/components/responses/Error' }
   /alarms/{id}:
     parameters:
@@ -290,11 +312,10 @@ components:
         app_available: { type: boolean }
     Me:
       type: object
-      required: [id, name, is_admin, away]
+      required: [id, name, away]
       properties:
         id: { type: string }
         name: { type: string }
-        is_admin: { type: boolean }
         away: { type: boolean }
     ActionDefinition:
       type: object
@@ -417,7 +438,6 @@ components:
         - updated_at
         - next_occurrence
         - disabled_reason
-        - editable
       properties:
         id: { type: string, format: uuid }
         owner_user_id: { type: string }
@@ -444,7 +464,23 @@ components:
         disabled_reason:
           type: [string, 'null']
           enum: [owner_inactive, fired, null]
-        editable: { type: boolean }
+    PlannedAction:
+      type: object
+      required: [owner_name, script_entity_id, script_name, icon_path, timing, run_at, alarm_at, delay_minutes]
+      properties:
+        owner_name: { type: [string, 'null'] }
+        script_entity_id: { type: string }
+        script_name:
+          type: [string, 'null']
+          description: Null when the script is gone or lost its label.
+        icon_path: { type: [string, 'null'] }
+        timing: { $ref: '#/components/schemas/Timing' }
+        run_at:
+          type: [string, 'null']
+          format: date-time
+          description: When the action runs (UTC); null for `after_dismiss`.
+        alarm_at: { type: string, format: date-time, description: When the alarm rings (UTC). }
+        delay_minutes: { type: [integer, 'null'] }
     AlarmWarning:
       type: object
       required: [code, alarm_action_id, message]

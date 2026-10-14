@@ -38,7 +38,7 @@ Settings (global)        Client (app instance) *───1 User
 2. **Label gate:** a script can only be run if it carries the action label at execution time.
 3. **Time zone:** all server schedule calculations use the HA time zone; storage and API use UTC for instants and local `HH:MM` for alarm times. The phone rings at the local wall-clock `time` in its own time zone (rule 12).
 4. **DST:** a time that does not exist (spring forward) fires at the next valid moment; an ambiguous time (fall back) fires at its first occurrence. Server and app follow the same published test vectors.
-5. **Ownership:** users only modify their own alarms; admins may view all, but not change them.
+5. **Ownership:** users only see and modify their own alarms, also admins. Everyone sees the upcoming actions planned by other users (who, which script, when).
 6. **Concurrency:** updates carry a `revision`; a mismatch returns 409 and the client must refetch.
 7. **Own alarms only:** users can only see and change their own alarms; others get "not found".
 8. **Login everywhere:** every request requires a Home Assistant login: the panel through HA ingress, the app with its HA access token on the optional external API. Exposing the API to the internet for the app adds no route that works without login.
@@ -72,29 +72,31 @@ Detailed security requirements: [../requirements/security-requirements.md](../re
 
 ## 4. Access control
 
-Who may do what. "Other user" is any HA user who is not the owner. The "Admin" column is an admin acting on **another user's** alarm; on their own alarms admins are owners.
+Who may do what. "Other user" is any HA user who is not the owner, **including admins**: admins have no extra rights on other users' alarms.
 
-| Operation | Owner | Other user | Admin | Not logged in |
-|---|---|---|---|---|
-| List alarms | Own only | Own only (never sees the owner's) | All | Rejected (401) |
-| Read one alarm | Yes | Not found (404) | Yes | Rejected |
-| Create alarm | Yes (becomes owner) | n/a | Own only (owner = self) | Rejected |
-| Edit or delete alarm | Yes | Not found (404) | Forbidden (403) | Rejected |
-| Skip, unskip | Yes | Not found (404) | Forbidden (403) | Rejected |
-| Report dismissed, snoozed or timed out | Yes | Not found (404) | Forbidden (403) | Rejected |
-| Run action now | Yes | Not found (404) | Forbidden (403) | Rejected |
-| View history | Own alarms | Own alarms | All | Rejected |
-| List available actions (labeled scripts) | Yes | Yes | Yes | Rejected |
-| Sync own alarms (`/sync`) | Own only | Own only | Own only | Rejected |
-| Register an app instance (incl. time zone) | Yes (own) | n/a | Yes (own) | Rejected |
-| Download the APK (when the app add-on runs) | Any logged-in user | Any logged-in user | Yes | Rejected |
-| Read settings | Yes | Yes | Yes | Rejected |
-| Change settings (add-on configuration page) | No | No | Yes | Rejected |
+| Operation | Owner | Other user (also admin) | Not logged in |
+|---|---|---|---|
+| List alarms | Own only | Own only (never sees the owner's) | Rejected (401) |
+| See planned actions (owner name, script, time) | n/a | Yes (`/planned`) | Rejected |
+| Read one alarm | Yes | Not found (404) | Rejected |
+| Create alarm | Yes (becomes owner) | n/a | Rejected |
+| Edit or delete alarm | Yes | Not found (404) | Rejected |
+| Skip, unskip | Yes | Not found (404) | Rejected |
+| Report dismissed, snoozed or timed out | Yes | Not found (404) | Rejected |
+| Run action now | Yes | Not found (404) | Rejected |
+| View history | Own alarms | Own alarms | Rejected |
+| List available actions (labeled scripts) | Yes | Yes | Rejected |
+| Sync own alarms (`/sync`) | Own only | Own only | Rejected |
+| Register an app instance (incl. time zone) | Yes (own) | n/a | Rejected |
+| Download the APK (when the app add-on runs) | Any logged-in user | Any logged-in user | Rejected |
+| Read settings | Yes | Yes | Rejected |
+| Change settings (add-on configuration page) | Admins only (HA add-on page) | Admins only | Rejected |
 
 **Rules**
 - The owner is fixed when the alarm is created and cannot be changed or supplied by the client; it always comes from the HA user that ingress identifies or that HA confirms for the app's token.
-- "Not found" instead of "forbidden" for other people's alarms, so ids cannot be probed. Admins get 403 on writes because they can already see the alarm.
-- Admins have **view-only** access to other users' alarms. To stop another user's alarms, an admin deactivates that HA user (alarms are then disabled, see [Alarm](objects/alarm.md)).
+- "Not found" instead of "forbidden" for other people's alarms, so ids cannot be probed.
+- Admins have no access to other users' alarms. To stop another user's alarms, an admin deactivates that HA user (alarms are then disabled, see [Alarm](objects/alarm.md)).
+- Planned actions of other users show only the owner name, script and time, never alarm ids, labels or settings.
 - Alarms of a deleted or deactivated user are disabled, and stay disabled after reactivation.
 - One central check is used by every route; the default is deny.
 

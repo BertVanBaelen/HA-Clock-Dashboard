@@ -20,7 +20,7 @@ export async function apiRoutes(app: FastifyInstance): Promise<void> {
     min_client_api_version: MIN_CLIENT_API_VERSION,
     time_zone: svc.directory.timeZone,
     ha_connected: svc.ha.connected,
-    app_available: (await svc.appProbe.info()).available,
+    app_available: svc.appProbe.peek(),
   }));
 
   // The "Install app" tab (TR-UI-06); the APK download follows in phase 6.
@@ -28,7 +28,7 @@ export async function apiRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/me', async (req): Promise<Me> => {
     const user = currentUser(req);
-    return { id: user.id, name: user.name, is_admin: user.isAdmin, away: false };
+    return { id: user.id, name: user.name, away: false };
   });
 
   app.get('/actions', async (): Promise<ActionsResponse> => {

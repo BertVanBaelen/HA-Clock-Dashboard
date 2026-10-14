@@ -16,7 +16,13 @@
   --info-color: #039be5;
   --ha-card-border-radius: 12px;
   color-scheme: light;
-  font-family: Roboto, 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:
+    Roboto,
+    'Noto Sans',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   font-size: 14px;
   line-height: 1.4;
 }
@@ -359,7 +365,11 @@ button.danger-outline {
 }
 
 .switch input:checked + .slider {
-  background: color-mix(in srgb, var(--switch-checked-color, var(--primary-color)) 50%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--switch-checked-color, var(--primary-color)) 50%,
+    transparent
+  );
 }
 
 .switch input:checked + .slider::before {
@@ -494,7 +504,10 @@ select {
   padding: 6px 10px;
   border: 1px solid var(--divider-color);
   border-radius: 6px;
-  background: var(--input-fill-color, color-mix(in srgb, var(--primary-text-color) 7%, transparent));
+  background: var(
+    --input-fill-color,
+    color-mix(in srgb, var(--primary-text-color) 7%, transparent)
+  );
 }
 
 input:focus-visible,
@@ -609,24 +622,37 @@ button:focus-visible {
 }
 
 /* Settings */
-.settings {
-  margin: 8px 0 0;
+.footer {
+  margin-top: 24px;
+  text-align: center;
 }
 
-.setting {
+.planned-list {
   display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--divider-color);
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.setting dt {
-  color: var(--secondary-text-color);
+.planned-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--ha-card-border-radius);
+  background: var(--ha-card-background, var(--card-background-color));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
-.setting dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-  text-align: right;
+.planned-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.planned-time {
+  font-weight: 500;
 }

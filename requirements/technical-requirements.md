@@ -56,7 +56,7 @@ alarm_actions/                  dashboard add-on (npm workspaces)
     store/                      alarms, occurrences and execution records
     scheduler.ts                next-occurrence calc + timers
     executor.ts                 runs scripts, records results
-    security.ts                 identity (ingress or bearer token), owner/admin checks
+    security.ts                 identity (ingress or bearer token), owner check
     ratelimit.ts                script-start and API rate limiting
     routes/                     HTTP routes
     appProxy.ts                 detects the app add-on, proxies APK info/download
@@ -122,8 +122,9 @@ Served by the dashboard add-on on two listeners with the same routes and the sam
 | Method | Path (under `api/v1`) | Description |
 |---|---|---|
 | GET | `/info` | Add-on version, `api_version`, `min_client_api_version`, whether the app add-on is available |
-| GET | `/me` | Current user id, name, admin flag, away state |
-| GET | `/alarms` | List alarms visible to the user (includes `revision` and `next_occurrence`) |
+| GET | `/me` | Current user id, name, away state |
+| GET | `/alarms` | List the user's own alarms (includes `revision` and `next_occurrence`) |
+| GET | `/planned` | Upcoming actions of other users' alarms: owner name, script, time (FR-ACC-02) |
 | POST | `/alarms` | Create alarm |
 | GET | `/alarms/{id}` | Get alarm |
 | PUT | `/alarms/{id}` | Replace alarm (requires matching `revision`) |
@@ -135,11 +136,11 @@ Served by the dashboard add-on on two listeners with the same routes and the sam
 | POST | `/alarms/{id}/occurrences/{occurrence_id}/dismissed` | Report dismissal |
 | POST | `/alarms/{id}/occurrences/{occurrence_id}/snoozed` | Report snooze |
 | POST | `/alarms/{id}/occurrences/{occurrence_id}/timed_out` | Report that ringing stopped without dismissal |
-| GET | `/history?alarm_id=&limit=` | Execution history (own alarms; admins all) |
+| GET | `/history?alarm_id=&limit=` | Execution history (own alarms) |
 | GET | `/settings` | Read settings (they are changed in the add-on configuration, [Settings](../analysis/objects/settings.md)) |
 | GET | `/sync?since=<change_seq>` | Alarms changed since a `change_seq`, deleted ids, current `change_seq`, default snooze |
 | POST | `/clients` | Register or update an app instance, including its current time zone (called on every sync) |
-| GET | `/clients` | The user's own phones with last sync time and away state (admins: all) |
+| GET | `/clients` | The user's own phones with last sync time and away state |
 | GET | `/app/info` | APK version, checksum and availability (from the app add-on) |
 | GET | `/app/apk` | APK download, proxied from the app add-on |
 | GET | `/debug` | Admin only: redacted scheduler and storage state |
@@ -152,7 +153,7 @@ Served by the dashboard add-on on two listeners with the same routes and the sam
 | TR-API-04 | An `occurrence_id` is deterministic: `<alarm_id>_<YYYYMMDDTHHMMSSZ>` (scheduled UTC time, [Occurrence](../analysis/objects/occurrence.md)), so the app can compute it offline. Test vectors for ids **and** schedule calculation (DST, weekdays, skip) are published in `docs/test-vectors/` |
 | TR-API-05 | `docs/openapi.yaml` is the contract for this repository, validated in CI |
 | TR-API-06 | `GET /info` returns `min_client_api_version` so a client such as the app can detect an incompatible dashboard and show a clear message |
-| TR-API-07 | Foreign or unknown objects return `404`; admin-only endpoints and admin writes to other users' alarms return `403` (SEC-03, [Alarm](../analysis/objects/alarm.md)) |
+| TR-API-07 | Foreign or unknown objects return `404`, also for admins; admin-only endpoints (`/debug`) return `403` (SEC-03, [Alarm](../analysis/objects/alarm.md)) |
 | TR-API-08 | Weekdays are exchanged as `mon`..`sun`, never as numbers ([Occurrence](../analysis/objects/occurrence.md)) |
 | TR-API-09 | **Identity ([Dashboard add-on](../analysis/components/dashboard-addon.md)):** on the ingress listener the user is taken from the `X-Remote-User-Id` header that HA ingress adds; requests are accepted only from the Supervisor ingress proxy address (`172.30.32.2`); any other source, or a request without the header, gets `401`. On the external API listener the user comes from the bearer token (TR-API-12); `X-Remote-User-*` headers are ignored there. Both paths yield the same user object for the one central access check. Admin status and active state come from TR-HA-04 |
 | TR-API-10 | All routes use relative URLs, because the ingress path prefix differs per installation |

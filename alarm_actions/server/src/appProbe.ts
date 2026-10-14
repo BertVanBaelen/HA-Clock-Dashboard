@@ -22,7 +22,7 @@ export class AppProbe {
 
   info(): Promise<AppInfo> {
     if (!this.baseUrl) return Promise.resolve(UNAVAILABLE);
-    if (this.cached && this.now() - this.cached.at < CACHE_MS) return Promise.resolve(this.cached.info);
+    if (this.fresh()) return Promise.resolve(this.cached!.info);
     this.pending ??= this.fetchInfo(this.baseUrl).then((info) => {
       this.cached = { at: this.now(), info };
       this.pending = null;
@@ -31,9 +31,24 @@ export class AppProbe {
     return this.pending;
   }
 
+  /**
+   * Last known availability without waiting; starts a refresh when the cache is stale. Used by
+   * `/info` so opening the panel never waits for the app add-on (or its DNS timeout).
+   */
+  peek(): boolean {
+    if (this.baseUrl && !this.fresh()) void this.info();
+    return this.cached?.info.available ?? false;
+  }
+
+  private fresh(): boolean {
+    return this.cached !== null && this.now() - this.cached.at < CACHE_MS;
+  }
+
   private async fetchInfo(baseUrl: string): Promise<AppInfo> {
     try {
-      const res = await fetch(new URL('/info', baseUrl), { signal: AbortSignal.timeout(TIMEOUT_MS) });
+      const res = await fetch(new URL('/info', baseUrl), {
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
       if (!res.ok) return UNAVAILABLE;
       const body = (await res.json()) as { version?: unknown };
       return { available: true, version: typeof body.version === 'string' ? body.version : null };

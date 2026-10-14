@@ -65,7 +65,7 @@ IDs are stable; reference them in issues and PRs.
 | FR-UI-05 | Works on desktop and mobile (HA Companion App on iOS and Android) | M |
 | FR-UI-06 | Follows the HA theme (light/dark) | S |
 | FR-UI-07 | An "Install app" tab lets the user download the Android app. It appears only when the app add-on is installed and running (section 8) | S |
-| FR-UI-08 | Translations: English at minimum | M |
+| FR-UI-08 | Translations: English and Dutch; the panel follows the language of the HA user profile, English for other languages | M |
 | FR-UI-09 | When an edit causes a *before* action to be skipped for the next occurrence, the UI shows a warning before saving (FR-EXE-09) | M |
 | FR-UI-10 | The panel shows the user's connected phones with their last sync time, and an "away, actions paused" banner when FR-EXE-12 applies | S |
 
@@ -86,7 +86,7 @@ There are no Home Assistant entities ([Dashboard add-on](../analysis/components/
 | ID | Requirement | Prio |
 |---|---|---|
 | FR-ACC-01 | Every alarm has an owner (the HA user who created it) | M |
-| FR-ACC-02 | Users see and edit only their own alarms and history; admins can **view** all alarms and history but not change other users' alarms ([Alarm](../analysis/objects/alarm.md)) | M |
+| FR-ACC-02 | Users see and edit only their own alarms and history, also admins. Every user sees the upcoming actions planned by other users (who, which script, when), not the alarms themselves ([Alarm](../analysis/objects/alarm.md)) | M |
 | FR-ACC-03 | Shared household alarms visible to all users | C |
 | FR-ACC-04 | Alarms of a deleted or deactivated HA user stop running and are disabled; they stay disabled if the user is reactivated ([Alarm](../analysis/objects/alarm.md)) | M |
 | FR-ACC-05 | Requests for alarms the user may not access behave as "not found" | M |
@@ -111,4 +111,4 @@ See [security-requirements.md](security-requirements.md) (IDs `SEC-*`). Visible 
 Creating HA automations, HA entities for alarms, HA Container or Core installations (no Supervisor, so no add-ons), iOS app, conditions on actions, push-based instant sync, multiple time zones per alarm, Play Store release.
 
 ## Decisions
-Decisions are recorded in the file of the object or component they concern: alarms are per user ([Alarm](../analysis/objects/alarm.md)), dismissal timeout 60 minutes ([Occurrence](../analysis/objects/occurrence.md)), late *before* actions are skipped with a warning ([AlarmAction](../analysis/objects/alarm-action.md)), admins view-only ([Alarm](../analysis/objects/alarm.md)), away by time zone ([Client](../analysis/objects/client.md)), rate limit drops ([Settings](../analysis/objects/settings.md)), early dismissal ([OccurrenceEvent](../analysis/objects/occurrence-event.md)), two add-ons ([Dashboard add-on](../analysis/components/dashboard-addon.md)), settings in add-on configuration ([Settings](../analysis/objects/settings.md)), no entities ([Dashboard add-on](../analysis/components/dashboard-addon.md)), app add-on ([App add-on](../analysis/components/app-addon.md)).
+Decisions are recorded in the file of the object or component they concern: alarms are per user ([Alarm](../analysis/objects/alarm.md)), dismissal timeout 60 minutes ([Occurrence](../analysis/objects/occurrence.md)), late *before* actions are skipped with a warning ([AlarmAction](../analysis/objects/alarm-action.md)), no admin access, planned actions visible to all ([Alarm](../analysis/objects/alarm.md)), away by time zone ([Client](../analysis/objects/client.md)), rate limit drops ([Settings](../analysis/objects/settings.md)), early dismissal ([OccurrenceEvent](../analysis/objects/occurrence-event.md)), two add-ons ([Dashboard add-on](../analysis/components/dashboard-addon.md)), settings in add-on configuration ([Settings](../analysis/objects/settings.md)), no entities ([Dashboard add-on](../analysis/components/dashboard-addon.md)), app add-on ([App add-on](../analysis/components/app-addon.md)).

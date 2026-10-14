@@ -28,7 +28,7 @@
 ## Rules
 - Kept for 30 days or 200 entries **per user**, whichever is smaller, so one busy user cannot push out another user's history.
 - Disabled actions produce no record.
-- Visible per alarm to its owner; admins see all (read-only).
+- Visible per alarm to its owner only.
 - Each record is fired on the HA event bus as `alarm_actions_action_executed` with ids, timestamps and `result` only, so users can build e.g. "notify on failure" automations.
 
 ## Decisions
@@ -40,4 +40,4 @@
 ## Requirements and features
 - Requirements: FR-EXE-06, FR-UI-04; TR-DAT-03, 04, TR-EVT-01
 - [Phase 3](../../features/03-phase-scheduling-execution.md): 3.7, 3.8
-- [Phase 5](../../features/05-phase-dismiss-history.md): 5.6, 5.8, 5.12
+- [Phase 5](../../features/05-phase-history-logging.md): 5.1, 5.2, 5.4

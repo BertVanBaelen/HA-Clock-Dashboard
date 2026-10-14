@@ -19,7 +19,7 @@ import {
   type Weekday,
 } from '@alarm-actions/shared';
 import { ApiError, api, errorMessage } from './api';
-import type { Data } from './App';
+import type { Data, Scripts } from './App';
 import {
   copyDraft,
   draftBody,
@@ -32,13 +32,13 @@ import {
   type DraftAction,
 } from './draft';
 import { Icon } from './Icon';
-import { TIMING_LABEL, dayName, t } from './strings';
+import { dayName, t } from './strings';
 import { Switch } from './Switch';
 
 interface Props {
   initial: Draft;
-  readOnly: boolean;
   data: Data;
+  scripts: Scripts;
   onClose: () => void;
   onSaved: (alarm: Alarm) => void;
   onDeleted: (id: string) => void;
@@ -56,8 +56,8 @@ function parseNumber(value: string): number | null {
 
 export function AlarmEditor({
   initial,
-  readOnly,
   data,
+  scripts: scriptState,
   onClose,
   onSaved,
   onDeleted,
@@ -88,12 +88,14 @@ export function AlarmEditor({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const scripts = data.actions;
+  // Scripts load in the background; until then the current choices show as their entity ids.
+  const scriptsLoaded = scriptState.list !== null;
+  const scripts = useMemo(() => scriptState.list ?? [], [scriptState.list]);
   const scriptByEntity = useMemo(() => new Map(scripts.map((s) => [s.entity_id, s])), [scripts]);
   const errors = validateDraft(draft);
   const missed = missedBeforeActions(draft, data.info.time_zone, now);
   const isNew = draft.id === undefined;
-  const title = readOnly ? t.viewAlarm : isNew ? t.newAlarm : t.editAlarm;
+  const title = isNew ? t.newAlarm : t.editAlarm;
 
   const update = (patch: Partial<Draft>) => {
     setDraft((d) => ({ ...d, ...patch }));
@@ -109,9 +111,12 @@ export function AlarmEditor({
     });
 
   const handleError = (err: unknown) => {
-    if (err instanceof ApiError && err.status === 409) setProblem({ kind: 'conflict', text: t.conflict });
-    else if (err instanceof ApiError && err.status === 403) setProblem({ kind: 'error', text: t.forbidden });
-    else if (err instanceof ApiError && err.status === 404) setProblem({ kind: 'error', text: t.notFound });
+    if (err instanceof ApiError && err.status === 409)
+      setProblem({ kind: 'conflict', text: t.conflict });
+    else if (err instanceof ApiError && err.status === 403)
+      setProblem({ kind: 'error', text: t.forbidden });
+    else if (err instanceof ApiError && err.status === 404)
+      setProblem({ kind: 'error', text: t.notFound });
     else setProblem({ kind: 'error', text: errorMessage(err) });
   };
 
@@ -189,15 +194,12 @@ export function AlarmEditor({
             <Icon path={mdiClose} />
           </button>
           <h2 id="editor-title">{title}</h2>
-          {!readOnly ? (
-            <button type="button" className="primary" disabled={saving} onClick={() => void save()}>
-              {saving ? t.saving : t.save}
-            </button>
-          ) : null}
+          <button type="button" className="primary" disabled={saving} onClick={() => void save()}>
+            {saving ? t.saving : t.save}
+          </button>
         </header>
 
         <div className="dialog-body">
-          {readOnly ? <div className="banner info">{t.readOnly}</div> : null}
           {problem ? (
             <div className="banner error" role="alert">
               <span>{problem.text}</span>
@@ -219,7 +221,7 @@ export function AlarmEditor({
             </div>
           ) : null}
 
-          <fieldset disabled={readOnly} className="fields">
+          <div className="fields">
             <div className="row">
               <label className="field time-field">
                 <span>{t.time}</span>
@@ -234,7 +236,6 @@ export function AlarmEditor({
                 <span>{t.enabled}</span>
                 <Switch
                   checked={draft.enabled}
-                  disabled={readOnly}
                   label={t.enabled}
                   onChange={(enabled) => update({ enabled })}
                 />
@@ -271,21 +272,7 @@ export function AlarmEditor({
               </div>
               <small className="muted">{t.repeatHint}</small>
             </div>
-
-            <label className="field">
-              <span>{t.snooze}</span>
-              <input
-                type="number"
-                inputMode="numeric"
-                min={1}
-                max={30}
-                placeholder={String(data.settings.snooze_minutes)}
-                value={draft.snooze_minutes ?? ''}
-                onChange={(e) => update({ snooze_minutes: parseNumber(e.target.value) })}
-              />
-              <small className="muted">{t.snoozeHint(data.settings.snooze_minutes)}</small>
-            </label>
-          </fieldset>
+          </div>
 
           <section className="actions-section">
             <h3>{t.actions}</h3>
@@ -293,7 +280,8 @@ export function AlarmEditor({
             <ul className="action-list">
               {draft.actions.map((action) => {
                 const script = scriptByEntity.get(action.script_entity_id);
-                const unavailable = action.script_entity_id !== '' && !script;
+                const unavailable = scriptsLoaded && action.script_entity_id !== '' && !script;
+                const pending = !scriptsLoaded && action.script_entity_id !== '';
                 const isMissed = missed.some((m) => m.key === action.key);
                 const error = touched ? errors.get(action.key) : undefined;
                 return (
@@ -304,17 +292,24 @@ export function AlarmEditor({
                       </span>
                       <select
                         aria-label={t.script}
-                        disabled={readOnly}
                         value={action.script_entity_id}
                         onChange={(e) =>
-                          updateAction(action.key, (a) => ({ ...a, script_entity_id: e.target.value }))
+                          updateAction(action.key, (a) => ({
+                            ...a,
+                            script_entity_id: e.target.value,
+                          }))
                         }
                       >
-                        {action.script_entity_id === '' ? <option value="">{t.pickScript}</option> : null}
+                        {action.script_entity_id === '' ? (
+                          <option value="">{t.pickScript}</option>
+                        ) : null}
                         {unavailable ? (
                           <option value={action.script_entity_id}>
                             {action.script_entity_id} ({t.unavailable})
                           </option>
+                        ) : null}
+                        {pending ? (
+                          <option value={action.script_entity_id}>{action.script_entity_id}</option>
                         ) : null}
                         {scripts.map((s) => (
                           <option key={s.entity_id} value={s.entity_id}>
@@ -324,29 +319,27 @@ export function AlarmEditor({
                       </select>
                       <Switch
                         checked={action.enabled}
-                        disabled={readOnly}
                         label={t.enabled}
                         onChange={(enabled) => updateAction(action.key, (a) => ({ ...a, enabled }))}
                       />
-                      {!readOnly ? (
-                        <button
-                          type="button"
-                          className="icon-button"
-                          title={t.remove}
-                          aria-label={t.remove}
-                          onClick={() =>
-                            update({ actions: draft.actions.filter((a) => a.key !== action.key) })
-                          }
-                        >
-                          <Icon path={mdiDelete} />
-                        </button>
-                      ) : null}
+                      <button
+                        type="button"
+                        className="icon-button"
+                        title={t.remove}
+                        aria-label={t.remove}
+                        onClick={() =>
+                          update({ actions: draft.actions.filter((a) => a.key !== action.key) })
+                        }
+                      >
+                        <Icon path={mdiDelete} />
+                      </button>
                     </div>
-                    {script?.description ? <p className="muted small">{script.description}</p> : null}
+                    {script?.description ? (
+                      <p className="muted small">{script.description}</p>
+                    ) : null}
                     <div className="action-timing">
                       <select
                         aria-label={t.timing}
-                        disabled={readOnly}
                         value={action.timing}
                         onChange={(e) =>
                           updateAction(action.key, (a) =>
@@ -354,21 +347,24 @@ export function AlarmEditor({
                           )
                         }
                       >
-                        {/* after_dismiss runs need dismiss events (phase 5); only shown when already set. */}
-                        {TIMINGS.filter((x) => x !== 'after_dismiss' || action.timing === x).map((timing) => (
-                          <option key={timing} value={timing}>
-                            {TIMING_LABEL[timing]}
-                          </option>
-                        ))}
+                        {/* after_dismiss runs need dismiss events (phase 6); only shown when already set. */}
+                        {TIMINGS.filter((x) => x !== 'after_dismiss' || action.timing === x).map(
+                          (timing) => (
+                            <option key={timing} value={timing}>
+                              {t.timings[timing]}
+                            </option>
+                          ),
+                        )}
                       </select>
-                      {action.offset_minutes !== null || action.timing === 'before' || action.timing === 'after' ? (
+                      {action.offset_minutes !== null ||
+                      action.timing === 'before' ||
+                      action.timing === 'after' ? (
                         <label className="inline-field">
                           <input
                             type="number"
                             inputMode="numeric"
                             min={1}
                             max={720}
-                            disabled={readOnly}
                             aria-label={t.minutes}
                             value={action.offset_minutes ?? ''}
                             onChange={(e) =>
@@ -388,7 +384,6 @@ export function AlarmEditor({
                             inputMode="numeric"
                             min={0}
                             max={120}
-                            disabled={readOnly}
                             aria-label={t.delay}
                             value={action.delay_minutes ?? ''}
                             onChange={(e) =>
@@ -402,7 +397,7 @@ export function AlarmEditor({
                         </label>
                       ) : null}
                       <span className="spacer" />
-                      {!readOnly && saved(action) && script ? (
+                      {saved(action) && script ? (
                         <button
                           type="button"
                           className="icon-button"
@@ -423,39 +418,53 @@ export function AlarmEditor({
                     {isMissed ? (
                       <p className="hint warning">
                         <Icon path={mdiAlertOutline} size={16} />
-                        {t.beforeMissed(action.offset_minutes ?? 0, script?.name ?? action.script_entity_id)}
+                        {t.beforeMissed(
+                          action.offset_minutes ?? 0,
+                          script?.name ?? action.script_entity_id,
+                        )}
                       </p>
                     ) : null}
                     {error ? <p className="field-error">{error}</p> : null}
-                    {runResult[action.key] ? <p className="muted small">{runResult[action.key]}</p> : null}
+                    {runResult[action.key] ? (
+                      <p className="muted small">{runResult[action.key]}</p>
+                    ) : null}
                   </li>
                 );
               })}
             </ul>
-            {!readOnly ? (
-              scripts.length === 0 ? (
-                <p className="muted">{t.noScripts(data.settings.action_label)}</p>
-              ) : draft.actions.length >= LIMITS.actionsPerAlarm ? (
-                <p className="muted">{t.actionLimit(LIMITS.actionsPerAlarm)}</p>
-              ) : (
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => update({ actions: [...draft.actions, newAction(scripts[0]!.entity_id)] })}
-                >
-                  <Icon path={mdiPlus} size={20} />
-                  <span>{t.addAction}</span>
-                </button>
-              )
-            ) : null}
+            {!scriptsLoaded ? (
+              <p className={scriptState.error ? 'field-error' : 'muted'}>
+                {scriptState.error ?? t.loadingScripts}
+              </p>
+            ) : scripts.length === 0 ? (
+              <p className="muted">{t.noScripts(scriptState.label)}</p>
+            ) : draft.actions.length >= LIMITS.actionsPerAlarm ? (
+              <p className="muted">{t.actionLimit(LIMITS.actionsPerAlarm)}</p>
+            ) : (
+              <button
+                type="button"
+                className="secondary"
+                onClick={() =>
+                  update({ actions: [...draft.actions, newAction(scripts[0]!.entity_id)] })
+                }
+              >
+                <Icon path={mdiPlus} size={20} />
+                <span>{t.addAction}</span>
+              </button>
+            )}
           </section>
 
-          {!readOnly && !isNew ? (
+          {!isNew ? (
             <section className="danger-zone">
               {confirmDelete ? (
                 <div className="confirm">
                   <span>{t.confirmDelete}</span>
-                  <button type="button" className="danger" disabled={saving} onClick={() => void remove()}>
+                  <button
+                    type="button"
+                    className="danger"
+                    disabled={saving}
+                    onClick={() => void remove()}
+                  >
                     {t.yesDelete}
                   </button>
                   <button type="button" onClick={() => setConfirmDelete(false)}>
@@ -464,7 +473,11 @@ export function AlarmEditor({
                 </div>
               ) : (
                 <div className="confirm">
-                  <button type="button" className="danger-outline" onClick={() => setConfirmDelete(true)}>
+                  <button
+                    type="button"
+                    className="danger-outline"
+                    onClick={() => setConfirmDelete(true)}
+                  >
                     <Icon path={mdiDelete} size={20} />
                     <span>{t.delete}</span>
                   </button>

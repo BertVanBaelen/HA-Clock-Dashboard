@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { StoredAlarm } from './store.js';
 import type { HaUser } from './ha/users.js';
-import { forbidden, notFound, tooManyRequests, unauthorized, unavailable } from './errors.js';
+import { notFound, tooManyRequests, unauthorized, unavailable } from './errors.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -66,29 +66,12 @@ export function currentUser(req: FastifyRequest): HaUser {
   return req.haUser;
 }
 
-export type Access = 'read' | 'write';
-
 /**
  * The one access check for alarms (SEC-03, TR-API-07, analysis §4), deny by default:
- * - owner: read and write;
- * - admin on another user's alarm: read only, writes get 403;
- * - anyone else, or a missing alarm: 404, so ids cannot be probed.
+ * only the owner may read or change an alarm. For anyone else, or a missing alarm, it is 404,
+ * so ids cannot be probed. Other users only see planned actions (`GET /planned`).
  */
-export function authorizeAlarm(
-  user: HaUser,
-  alarm: StoredAlarm | null,
-  access: Access,
-): StoredAlarm {
-  if (!alarm) throw notFound('Alarm');
-  if (alarm.owner_user_id === user.id) return alarm;
-  if (user.isAdmin) {
-    if (access === 'read') return alarm;
-    throw forbidden("Admins can view other users' alarms but not change them.");
-  }
-  throw notFound('Alarm');
-}
-
-/** Alarms a user may list: their own, or everyone's for an admin. */
-export function visibleOwner(user: HaUser): string | undefined {
-  return user.isAdmin ? undefined : user.id;
+export function authorizeAlarm(user: HaUser, alarm: StoredAlarm | null): StoredAlarm {
+  if (!alarm || alarm.owner_user_id !== user.id) throw notFound('Alarm');
+  return alarm;
 }

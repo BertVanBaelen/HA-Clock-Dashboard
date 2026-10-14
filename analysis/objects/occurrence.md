@@ -39,6 +39,5 @@ fired/snoozed ──timeout or timed_out event──► expired
 - Requirements: FR-ALM-05, 06, 07, FR-EXE-04; TR-SCH-01, 02, TR-API-04; ATR-SYN-01
 - [Phase 2](../../features/02-phase-data-model-api.md): 2.8
 - [Phase 3](../../features/03-phase-scheduling-execution.md): 3.1, 3.4, 3.5, 3.9
-- [Phase 5](../../features/05-phase-dismiss-history.md): 5.1
-- [Phase 6](../../features/06-phase-app-addon-sync.md): 6.9
+- [Phase 6](../../features/06-phase-app-addon-sync.md): 6.9, 6.13
 - [App A3](../../features/app/A3-alarm-engine.md): A3.1, A3.5, A3.9

@@ -28,7 +28,7 @@ Overview of all objects: [domain analysis](../domain-analysis.md).
 - **Edits during an active occurrence** (fired or snoozed): changes to `time` and `repeat_days` apply from the next occurrence. The active occurrence keeps its pending runs, except runs of actions that were removed or disabled, which are cancelled.
 - Deleting an alarm cancels all its pending planned runs, including those of active occurrences, and leaves a tombstone for sync. History entries are kept until they expire.
 - Caps: at most 50 alarms per user, 20 actions per alarm, 1000 actions in total.
-- **Ownership:** only the owner can change an alarm. Admins can view it, but writes return 403. For any other user it behaves as non-existent (404).
+- **Ownership:** only the owner can see or change an alarm. For any other user, also admins, it behaves as non-existent (404). Other users only see its upcoming actions (owner name, script, time) through `/planned`.
 - If the owner is deleted or deactivated, the alarm is disabled and its runs are recorded as `skipped` ("owner inactive"). If the owner is reactivated, the alarms **stay disabled** until the owner turns them on again.
 - Alarm times and labels are personal data (they reveal sleeping patterns).
 
@@ -41,8 +41,8 @@ Enabled(one-time) → fired → Disabled   (fired occurrence completes its runs)
 ## Decisions
 | Decision | Why |
 |---|---|
-| Alarms are **per user**, visible to the owner (and read-only to admins). Shared household alarms are backlog | Alarms are personal; scripts are shared |
-| Admins have **view-only** access to other users' alarms (no edit, delete, skip, dismiss or run); writes return 403 | Alarms are personal; an admin can still deactivate a user to stop their alarms |
+| Alarms are **per user**, visible only to the owner; other users see the planned actions with their time. Shared household alarms are backlog | Alarms are personal; scripts are shared |
+| Admins have **no** access to other users' alarms; everyone sees other users' planned actions with their time | Simpler than a read-only admin view, and the household knows what will run (e.g. heating); an admin can still deactivate a user to stop their alarms |
 | Foreign or unknown alarms return **404** | Prevents id enumeration |
 | `snooze_minutes` is stored on the alarm and synced; the alarm **sound** stays local on the phone | Snooze is part of the alarm; sounds are device files |
 | Alarms disabled because the owner was deactivated **stay disabled** after reactivation | No surprise alarms; the owner re-enables them |

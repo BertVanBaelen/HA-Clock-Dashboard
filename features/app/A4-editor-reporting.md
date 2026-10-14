@@ -4,7 +4,7 @@
 
 **Objects and components:** [Android app](../../analysis/components/android-app.md), [Alarm](../../analysis/objects/alarm.md), [AlarmAction](../../analysis/objects/alarm-action.md), [OccurrenceEvent](../../analysis/objects/occurrence-event.md)
 
-Depends on A2 and A3.
+Depends on A2 and A3, and on dashboard phase 6 for the dismiss/snooze endpoints (6.13-6.21, 6.10).
 
 | # | Feature | Requirements | Done when |
 |---|---|---|---|

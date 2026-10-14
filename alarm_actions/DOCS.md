@@ -22,7 +22,8 @@ and add the label `alarm_action` (create it the first time). Scripts are started
 ## Using the panel
 
 - **New alarm**: set the time, an optional label and the days. Select no days for a one-time
-  alarm. Leave snooze empty to use the default.
+  alarm. Snooze is set in the Android app; otherwise the default from the add-on options applies.
+- **Editing** an alarm switches it on: saving activates it, unless you turn it off in the editor.
 - **Actions**: pick a script, choose *before*, *at* or *after* the alarm and the number of minutes.
   Each action can be switched off on its own; ▶ runs a saved action right away to test it.
 - If a *before* action is already past for the next alarm (for example 20 minutes before an alarm
@@ -35,7 +36,7 @@ and add the label `alarm_action` (create it the first time). Scripts are started
 ## Users and permissions
 
 - Every Home Assistant user sees only their own alarms.
-- Administrators also see all alarms of other users, read-only.
+- Below your alarms, **Planned by others** lists the upcoming actions of other users' alarms: who, which script and when. Other users' alarms themselves cannot be opened or changed, also not by administrators.
 - The add-on runs scripts with Home Assistant's own permissions, so only label scripts that are
   safe for every user to trigger.
 

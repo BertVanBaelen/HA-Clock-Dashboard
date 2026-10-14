@@ -2,17 +2,22 @@ import { WEEKDAYS, type Timing, type Weekday } from '@alarm-actions/shared';
 import { locale } from './theme';
 
 /**
- * UI strings. English only for now; dates, times and weekday names follow the HA language through
- * Intl. Keeping strings here makes adding translations a data change.
+ * UI strings in the language of the HA user profile (TR-UI-05): Dutch or English, English for
+ * every other language. Dates, times and weekday names use Intl with the same language.
  */
-export const t = {
+const en = {
   title: 'Alarms',
+  planned: 'Planned by others',
+  plannedHint: 'Actions from the alarms of other people in the house.',
+  someone: 'Someone',
+  afterDismiss: (alarm: string, delay: number) =>
+    delay > 0
+      ? `${delay} min after the ${alarm} alarm is dismissed`
+      : `when the ${alarm} alarm is dismissed`,
   tabAlarms: 'Alarms',
-  tabSettings: 'Settings',
   tabApp: 'Install app',
   newAlarm: 'New alarm',
   editAlarm: 'Edit alarm',
-  viewAlarm: 'Alarm',
   noAlarms: 'No alarms yet. Create one to get started.',
   loading: 'Loading…',
   retry: 'Retry',
@@ -25,7 +30,6 @@ export const t = {
   confirmDelete: 'Delete this alarm?',
   yesDelete: 'Yes, delete',
   edit: 'Edit',
-  view: 'View',
   duplicate: 'Duplicate',
   skipNext: 'Skip next',
   undoSkip: 'Undo skip',
@@ -36,24 +40,28 @@ export const t = {
   weekend: 'Weekend',
   off: 'Off',
   next: 'Next',
-  owner: 'Owner',
-  readOnly: "This alarm belongs to another user. You can view it, but only the owner can change it.",
   label: 'Label',
   labelPlaceholder: 'Wake up',
   time: 'Time',
   repeat: 'Repeat',
   repeatHint: 'Select no days for a one-time alarm.',
   enabled: 'Enabled',
-  snooze: 'Snooze (minutes)',
-  snoozeHint: (d: number) => `Leave empty to use the default (${d} min).`,
   actions: 'Actions',
+  actionCount: (n: number) => (n === 1 ? '1 action' : `${n} actions`),
   noActions: 'No actions. Add one to run a script before, at or after the alarm.',
   addAction: 'Add action',
   noScripts: (label: string) =>
     `No scripts available. Give a script the label "${label}" in Home Assistant to use it here.`,
+  loadingScripts: 'Loading scripts…',
   script: 'Script',
   pickScript: 'Choose a script…',
   timing: 'When',
+  timings: {
+    before: 'Before alarm',
+    at: 'At alarm',
+    after: 'After alarm',
+    after_dismiss: 'After dismiss',
+  } as Record<Timing, string>,
   minutes: 'Minutes',
   delay: 'Delay (minutes)',
   runNow: 'Run now',
@@ -70,40 +78,124 @@ export const t = {
     `"${script}" (${minutes} min before) is already past for the next alarm and will not run this time.`,
   savedWithWarnings: 'Saved with warnings',
   runResult: (r: string) => `Run result: ${r}`,
-  settingsTitle: 'Settings',
-  settingsAdminHint:
-    'Change these values in Settings → Add-ons → Alarm Actions → Configuration.',
-  settingsUserHint: 'Only an administrator can change these values.',
+  invalidTime: 'Enter a valid time.',
+  chooseScript: 'Choose a script.',
+  minutesRange: 'Minutes must be between 1 and 720.',
+  delayRange: 'Delay must be between 0 and 120 minutes.',
+  duplicateAction: 'Same as another action.',
+  networkError: 'The add-on cannot be reached. Check your connection.',
+  requestFailed: (status: number) => `Request failed (${status}).`,
+  genericError: 'Something went wrong.',
   appTitle: 'Android app',
   appIntro:
     'Install the companion app on your phone so alarms ring even without a network connection.',
   appUnavailable: 'The app is not available right now.',
   appVersion: (v: string) => `Available version: ${v}`,
   appComing: 'Download and setup instructions follow in a later version.',
-  timeZone: 'Time zone',
-  version: 'Version',
-} as const;
-
-export const TIMING_LABEL: Record<Timing, string> = {
-  before: 'Before alarm',
-  at: 'At alarm',
-  after: 'After alarm',
-  after_dismiss: 'After dismiss',
+  version: (v: string) => `Alarm Actions ${v}`,
 };
 
-export const SETTING_LABEL: Record<string, string> = {
-  snooze_minutes: 'Default snooze (minutes)',
-  dismiss_timeout_minutes: 'Dismiss timeout (minutes)',
-  grace_period_minutes: 'Grace period (minutes)',
-  action_label: 'Script label',
-  history_days: 'History days',
-  history_max: 'History entries per alarm',
-  max_script_starts_per_minute: 'Max script starts per minute',
-  min_script_interval_seconds: 'Min seconds between runs of a script',
-  log_level: 'Log level',
-  external_api_url: 'External API URL',
+export type Strings = typeof en;
+
+const nl: Strings = {
+  title: 'Wekkers',
+  planned: 'Gepland door anderen',
+  plannedHint: 'Acties van de wekkers van andere mensen in huis.',
+  someone: 'Iemand',
+  afterDismiss: (alarm: string, delay: number) =>
+    delay > 0
+      ? `${delay} min na het uitzetten van de wekker van ${alarm}`
+      : `bij het uitzetten van de wekker van ${alarm}`,
+  tabAlarms: 'Wekkers',
+  tabApp: 'App installeren',
+  newAlarm: 'Nieuwe wekker',
+  editAlarm: 'Wekker bewerken',
+  noAlarms: 'Nog geen wekkers. Maak er een aan om te beginnen.',
+  loading: 'Laden…',
+  retry: 'Opnieuw proberen',
+  reload: 'Herladen',
+  save: 'Opslaan',
+  saving: 'Opslaan…',
+  cancel: 'Annuleren',
+  close: 'Sluiten',
+  delete: 'Verwijderen',
+  confirmDelete: 'Deze wekker verwijderen?',
+  yesDelete: 'Ja, verwijderen',
+  edit: 'Bewerken',
+  duplicate: 'Dupliceren',
+  skipNext: 'Volgende overslaan',
+  undoSkip: 'Overslaan ongedaan maken',
+  skipped: 'Volgende wekker overgeslagen',
+  once: 'Eenmalig',
+  everyDay: 'Elke dag',
+  weekdays: 'Weekdagen',
+  weekend: 'Weekend',
+  off: 'Uit',
+  next: 'Volgende',
+  label: 'Naam',
+  labelPlaceholder: 'Opstaan',
+  time: 'Tijd',
+  repeat: 'Herhalen',
+  repeatHint: 'Kies geen dagen voor een eenmalige wekker.',
+  enabled: 'Aan',
+  actions: 'Acties',
+  actionCount: (n: number) => (n === 1 ? '1 actie' : `${n} acties`),
+  noActions: 'Geen acties. Voeg er een toe om een script voor, bij of na de wekker te starten.',
+  addAction: 'Actie toevoegen',
+  noScripts: (label: string) =>
+    `Geen scripts beschikbaar. Geef een script het label "${label}" in Home Assistant om het hier te gebruiken.`,
+  loadingScripts: 'Scripts laden…',
+  script: 'Script',
+  pickScript: 'Kies een script…',
+  timing: 'Wanneer',
+  timings: {
+    before: 'Voor de wekker',
+    at: 'Bij de wekker',
+    after: 'Na de wekker',
+    after_dismiss: 'Na uitzetten',
+  },
+  minutes: 'Minuten',
+  delay: 'Vertraging (minuten)',
+  runNow: 'Nu uitvoeren',
+  remove: 'Verwijderen',
+  unavailable: 'Niet beschikbaar',
+  unavailableHint:
+    'Dit script bestaat niet meer of heeft het label niet meer. De actie wordt overgeslagen tot je ze aanpast of verwijdert.',
+  actionLimit: (n: number) => `Maximaal ${n} acties per wekker.`,
+  conflict: 'Deze wekker is ergens anders gewijzigd. Herlaad om de laatste versie te zien.',
+  forbidden: 'Je mag deze wekker niet wijzigen.',
+  notFound: 'Deze wekker bestaat niet meer.',
+  haOffline:
+    'Home Assistant is niet bereikbaar. Wekkers blijven bewaard en lopen zodra het terug is.',
+  beforeMissed: (minutes: number, script: string) =>
+    `"${script}" (${minutes} min vooraf) is voor de volgende wekker al voorbij en loopt deze keer niet.`,
+  savedWithWarnings: 'Opgeslagen met waarschuwingen',
+  runResult: (r: string) => `Resultaat: ${r}`,
+  invalidTime: 'Geef een geldige tijd in.',
+  chooseScript: 'Kies een script.',
+  minutesRange: 'Minuten moeten tussen 1 en 720 liggen.',
+  delayRange: 'Vertraging moet tussen 0 en 120 minuten liggen.',
+  duplicateAction: 'Gelijk aan een andere actie.',
+  networkError: 'De add-on is niet bereikbaar. Controleer je verbinding.',
+  requestFailed: (status: number) => `Aanvraag mislukt (${status}).`,
+  genericError: 'Er ging iets mis.',
+  appTitle: 'Android-app',
+  appIntro: 'Installeer de app op je telefoon zodat wekkers ook zonder netwerkverbinding afgaan.',
+  appUnavailable: 'De app is nu niet beschikbaar.',
+  appVersion: (v: string) => `Beschikbare versie: ${v}`,
+  appComing: 'Downloaden en instellen volgen in een latere versie.',
+  version: (v: string) => `Alarm Actions ${v}`,
 };
 
+const LANGUAGES: Record<string, Strings> = { en, nl };
+
+/** Current strings; filled by setLanguage before the first render. */
+export const t: Strings = { ...en };
+
+/** Picks the strings for an HA language code such as "nl", "nl-BE" or "en-GB". */
+export function setLanguage(language: string): void {
+  Object.assign(t, LANGUAGES[language.toLowerCase().split('-')[0]!] ?? en);
+}
 // 2024-01-01 is a Monday; used to get localized weekday names.
 const MONDAY = Date.UTC(2024, 0, 1, 12);
 
@@ -124,9 +216,11 @@ export function formatDays(days: readonly Weekday[]): string {
 /** "HH:MM" in the user's clock style (12 or 24 h). */
 export function formatTime(time: string): string {
   const [h, m] = time.split(':').map(Number) as [number, number];
-  return new Intl.DateTimeFormat(locale(), { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }).format(
-    new Date(Date.UTC(2024, 0, 1, h, m)),
-  );
+  return new Intl.DateTimeFormat(locale(), {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(2024, 0, 1, h, m)));
 }
 
 /** Next trigger in HA's time zone, for example "Tue 07:00". */

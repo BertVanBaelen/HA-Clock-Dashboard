@@ -6,6 +6,7 @@ import {
   type Timing,
   type Weekday,
 } from '@alarm-actions/shared';
+import { t } from './strings';
 
 /** Editable copy of an action; `key` is a client-only React key, `id` is absent for new ones. */
 export interface DraftAction {
@@ -72,6 +73,11 @@ export function draftFromAlarm(alarm: Alarm): Draft {
   };
 }
 
+/** Opening an alarm to edit turns it on, so saving activates it. */
+export function editDraft(alarm: Alarm): Draft {
+  return { ...draftFromAlarm(alarm), enabled: true };
+}
+
 /** A new, unsaved copy (FR-ALM-08): no ids, so the server creates new ones. */
 export function duplicateDraft(alarm: Alarm): Draft {
   return copyDraft(draftFromAlarm(alarm));
@@ -83,6 +89,7 @@ export function copyDraft(draft: Draft): Draft {
     id: undefined,
     revision: undefined,
     skip_next: false,
+    enabled: true,
     actions: draft.actions.map((a) => ({ ...a, id: undefined, key: newKey() })),
   };
 }
@@ -137,23 +144,23 @@ export function toggleBody(alarm: Alarm, enabled: boolean): Record<string, unkno
 /** Problems that block saving, keyed by action key ('' for the alarm itself). */
 export function validateDraft(draft: Draft): Map<string, string> {
   const errors = new Map<string, string>();
-  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(draft.time)) errors.set('', 'Enter a valid time.');
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(draft.time)) errors.set('', t.invalidTime);
   const seen = new Set<string>();
   for (const a of draft.actions) {
     if (!a.script_entity_id) {
-      errors.set(a.key, 'Choose a script.');
+      errors.set(a.key, t.chooseScript);
       continue;
     }
     if (a.offset_minutes !== null && !(a.offset_minutes >= 1 && a.offset_minutes <= 720)) {
-      errors.set(a.key, 'Minutes must be between 1 and 720.');
+      errors.set(a.key, t.minutesRange);
       continue;
     }
     if (a.delay_minutes !== null && !(a.delay_minutes >= 0 && a.delay_minutes <= 120)) {
-      errors.set(a.key, 'Delay must be between 0 and 120 minutes.');
+      errors.set(a.key, t.delayRange);
       continue;
     }
     const sig = [a.script_entity_id, a.timing, a.offset_minutes, a.delay_minutes].join('|');
-    if (seen.has(sig)) errors.set(a.key, 'Same as another action.');
+    if (seen.has(sig)) errors.set(a.key, t.duplicateAction);
     seen.add(sig);
   }
   return errors;

@@ -15,7 +15,7 @@
 
 ## Rules
 - The API works without a registered client, but the app always registers and updates its record on every sync (needed for away detection).
-- A user only sees their own clients (admins all, read-only). Removing a client does not revoke its login; tokens are revoked in the HA user profile.
+- A user only sees their own clients. Removing a client does not revoke its login; tokens are revoked in the HA user profile.
 - The app keeps a **local copy** of the user's alarms. The server is the source of truth for actions and scheduling; the phone is the source of truth for ringing.
 - A phone's time zone is personal data (it reveals travel); it is redacted in logs and debug output.
 

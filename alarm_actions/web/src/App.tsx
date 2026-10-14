@@ -1,53 +1,62 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { mdiAlarmPlus, mdiCellphoneArrowDown, mdiCog, mdiAlarmMultiple } from '@mdi/js';
+import { mdiAlarmPlus, mdiCellphoneArrowDown, mdiAlarmMultiple } from '@mdi/js';
 import type {
   ActionDefinition,
   ActionsResponse,
   Alarm,
   Info,
   Me,
+  PlannedAction,
+  PlannedResponse,
   Settings,
 } from '@alarm-actions/shared';
 import { api, errorMessage } from './api';
 import { AlarmEditor } from './AlarmEditor';
 import { AlarmList } from './AlarmList';
 import { AppTab } from './AppTab';
-import { draftFromAlarm, duplicateDraft, emptyDraft, type Draft } from './draft';
+import { duplicateDraft, editDraft, emptyDraft, type Draft } from './draft';
 import { Icon } from './Icon';
-import { SettingsView } from './SettingsView';
+import { PlannedList } from './PlannedList';
 import { t } from './strings';
 
-type Tab = 'alarms' | 'settings' | 'app';
+type Tab = 'alarms' | 'app';
 
 export interface Data {
   info: Info;
   me: Me;
-  settings: Settings;
-  actions: ActionDefinition[];
   alarms: Alarm[];
+  /** Upcoming actions of other users' alarms. */
+  planned: PlannedAction[];
+}
+
+/** Labeled scripts; loaded after the alarm list so they never delay opening the panel. */
+export interface Scripts {
+  list: ActionDefinition[] | null;
+  label: string;
+  error: string | null;
 }
 
 const POLL_MS = 30_000;
 
 export function App() {
   const [data, setData] = useState<Data | null>(null);
+  const [scripts, setScripts] = useState<Scripts>({ list: null, label: '', error: null });
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('alarms');
-  const [editing, setEditing] = useState<{ draft: Draft; readOnly: boolean } | null>(null);
+  const [editing, setEditing] = useState<Draft | null>(null);
   const loading = useRef(false);
 
   const load = useCallback(async () => {
     if (loading.current) return;
     loading.current = true;
     try {
-      const [info, me, settings, actions, alarms] = await Promise.all([
+      const [info, me, alarms, planned] = await Promise.all([
         api<Info>('info'),
         api<Me>('me'),
-        api<Settings>('settings'),
-        api<ActionsResponse>('actions'),
         api<{ alarms: Alarm[] }>('alarms'),
+        api<PlannedResponse>('planned'),
       ]);
-      setData({ info, me, settings, actions: actions.actions, alarms: alarms.alarms });
+      setData({ info, me, alarms: alarms.alarms, planned: planned.planned });
       setError(null);
     } catch (err) {
       setError(errorMessage(err));
@@ -56,9 +65,21 @@ export function App() {
     }
   }, []);
 
+  const loadScripts = useCallback(async () => {
+    try {
+      const [actions, settings] = await Promise.all([
+        api<ActionsResponse>('actions'),
+        api<Settings>('settings'),
+      ]);
+      setScripts({ list: actions.actions, label: settings.action_label, error: null });
+    } catch (err) {
+      setScripts((s) => ({ ...s, error: errorMessage(err) }));
+    }
+  }, []);
+
   // Live data (FR-UI-01): poll while visible and refresh when the panel becomes visible again.
   useEffect(() => {
-    void load();
+    void load().then(loadScripts);
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void load();
     }, POLL_MS);
@@ -70,7 +91,16 @@ export function App() {
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [load]);
+  }, [load, loadScripts]);
+
+  const openEditor = useCallback(
+    (draft: Draft) => {
+      setEditing(draft);
+      // Scripts change rarely; refresh them in the background whenever an alarm is opened.
+      void loadScripts();
+    },
+    [loadScripts],
+  );
 
   const replaceAlarm = useCallback((alarm: Alarm) => {
     setData((d) => {
@@ -113,30 +143,31 @@ export function App() {
       <header className="toolbar">
         <h1 className="title">{t.title}</h1>
         {activeTab === 'alarms' ? (
-          <button
-            type="button"
-            className="primary"
-            onClick={() => setEditing({ draft: emptyDraft(), readOnly: false })}
-          >
+          <button type="button" className="primary" onClick={() => openEditor(emptyDraft())}>
             <Icon path={mdiAlarmPlus} size={20} />
             <span>{t.newAlarm}</span>
           </button>
         ) : null}
       </header>
 
-      <nav className="tabs" role="tablist">
-        <TabButton active={activeTab === 'alarms'} onClick={() => setTab('alarms')} icon={mdiAlarmMultiple}>
-          {t.tabAlarms}
-        </TabButton>
-        <TabButton active={activeTab === 'settings'} onClick={() => setTab('settings')} icon={mdiCog}>
-          {t.tabSettings}
-        </TabButton>
-        {showAppTab ? (
-          <TabButton active={activeTab === 'app'} onClick={() => setTab('app')} icon={mdiCellphoneArrowDown}>
+      {showAppTab ? (
+        <nav className="tabs" role="tablist">
+          <TabButton
+            active={activeTab === 'alarms'}
+            onClick={() => setTab('alarms')}
+            icon={mdiAlarmMultiple}
+          >
+            {t.tabAlarms}
+          </TabButton>
+          <TabButton
+            active={activeTab === 'app'}
+            onClick={() => setTab('app')}
+            icon={mdiCellphoneArrowDown}
+          >
             {t.tabApp}
           </TabButton>
-        ) : null}
-      </nav>
+        </nav>
+      ) : null}
 
       {error ? (
         <div className="banner error" role="alert">
@@ -155,34 +186,39 @@ export function App() {
       {activeTab === 'alarms' ? (
         <AlarmList
           data={data}
+          scripts={scripts.list}
           onChanged={replaceAlarm}
           onReload={load}
-          onOpen={(alarm) => setEditing({ draft: draftFromAlarm(alarm), readOnly: !alarm.editable })}
-          onDuplicate={(alarm) => setEditing({ draft: duplicateDraft(alarm), readOnly: false })}
+          onOpen={(alarm) => openEditor(editDraft(alarm))}
+          onDuplicate={(alarm) => openEditor(duplicateDraft(alarm))}
         />
       ) : null}
-      {activeTab === 'settings' ? <SettingsView data={data} /> : null}
+      {activeTab === 'alarms' ? (
+        <PlannedList planned={data.planned} timeZone={data.info.time_zone} />
+      ) : null}
       {activeTab === 'app' ? <AppTab /> : null}
+
+      <footer className="footer muted small">{t.version(data.info.version)}</footer>
 
       {editing ? (
         <AlarmEditor
-          key={`${editing.draft.id ?? 'new'}-${editing.draft.revision ?? 0}`}
-          initial={editing.draft}
-          readOnly={editing.readOnly}
+          key={`${editing.id ?? 'new'}-${editing.revision ?? 0}`}
+          initial={editing}
           data={data}
+          scripts={scripts}
           onClose={() => setEditing(null)}
           onSaved={replaceAlarm}
           onDeleted={(id) => {
             removeAlarm(id);
             setEditing(null);
           }}
-          onDuplicate={(draft) => setEditing({ draft, readOnly: false })}
+          onDuplicate={(draft) => setEditing(draft)}
           onReload={async (id) => {
             await load();
             try {
               const fresh = await api<Alarm>(`alarms/${id}`);
               replaceAlarm(fresh);
-              setEditing({ draft: draftFromAlarm(fresh), readOnly: !fresh.editable });
+              setEditing(editDraft(fresh));
             } catch {
               setEditing(null);
             }
@@ -193,7 +229,12 @@ export function App() {
   );
 }
 
-function TabButton(props: { active: boolean; onClick: () => void; icon: string; children: string }) {
+function TabButton(props: {
+  active: boolean;
+  onClick: () => void;
+  icon: string;
+  children: string;
+}) {
   return (
     <button
       type="button"

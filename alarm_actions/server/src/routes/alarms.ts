@@ -6,16 +6,19 @@ import {
   alarmUpdateSchema,
   emptyBodySchema,
   nextOccurrence,
+  plannedRunAt,
   type Alarm,
   type AlarmActionInput,
   type AlarmAction,
   type AlarmSaveResponse,
+  type PlannedAction,
+  type PlannedResponse,
   type RunNowResponse,
 } from '@alarm-actions/shared';
 import { conflict, notFound, unavailable, unprocessable } from '../errors.js';
 import { DEFERRED } from '../executor.js';
 import type { HaUser } from '../ha/users.js';
-import { authorizeAlarm, currentUser, visibleOwner } from '../security.js';
+import { authorizeAlarm, currentUser } from '../security.js';
 import type { Services } from '../services.js';
 import { assignActionIds, type StoredAlarm } from '../store.js';
 import { parseBody, UUID_PARAM } from './validation.js';
@@ -29,8 +32,8 @@ export function nextOccurrenceOf(svc: Services, alarm: StoredAlarm): number | nu
   return nextOccurrence(alarm, tz, svc.now());
 }
 
-/** Stored alarm to API shape, as seen by `viewer`. */
-export function toApiAlarm(svc: Services, alarm: StoredAlarm, viewer: HaUser): Alarm {
+/** Stored alarm to API shape. */
+export function toApiAlarm(svc: Services, alarm: StoredAlarm): Alarm {
   const next = nextOccurrenceOf(svc, alarm);
   return {
     id: alarm.id,
@@ -49,8 +52,43 @@ export function toApiAlarm(svc: Services, alarm: StoredAlarm, viewer: HaUser): A
     updated_at: iso(alarm.updated_at),
     next_occurrence: next === null ? null : iso(next),
     disabled_reason: alarm.disabled_reason,
-    editable: alarm.owner_user_id === viewer.id,
   };
+}
+
+/**
+ * Upcoming actions of other users' alarms (FR-ACC-02): for each enabled alarm its next
+ * occurrence and the enabled actions that will still run, sorted by time.
+ */
+export function plannedByOthers(svc: Services, viewer: HaUser): PlannedAction[] {
+  const now = svc.now();
+  const result: Array<{ sort: number; item: PlannedAction }> = [];
+  for (const alarm of svc.store.list()) {
+    if (alarm.owner_user_id === viewer.id) continue;
+    const at = nextOccurrenceOf(svc, alarm);
+    if (at === null) continue;
+    const owner = svc.users.get(alarm.owner_user_id);
+    if (owner && !owner.isActive) continue;
+    for (const action of alarm.actions) {
+      if (!action.enabled) continue;
+      const runAt = plannedRunAt(at, action);
+      if (runAt !== null && runAt <= now) continue;
+      const script = svc.scripts.get(action.script_entity_id);
+      result.push({
+        sort: runAt ?? at + (action.delay_minutes ?? 0) * 60_000,
+        item: {
+          owner_name: owner?.name ?? null,
+          script_entity_id: action.script_entity_id,
+          script_name: script?.name ?? null,
+          icon_path: script?.icon_path ?? null,
+          timing: action.timing,
+          run_at: runAt === null ? null : iso(runAt),
+          alarm_at: iso(at),
+          delay_minutes: action.delay_minutes,
+        },
+      });
+    }
+  }
+  return result.sort((a, b) => a.sort - b.sort).map((r) => r.item);
 }
 
 /**
@@ -95,14 +133,18 @@ export function alarmRoutes(app: FastifyInstance): void {
 
   const load = (id: string) => (UUID_PARAM.test(id) ? svc.store.get(id.toLowerCase()) : null);
 
-  const saved = (alarm: StoredAlarm, user: HaUser): AlarmSaveResponse => ({
-    alarm: toApiAlarm(svc, alarm, user),
+  const saved = (alarm: StoredAlarm): AlarmSaveResponse => ({
+    alarm: toApiAlarm(svc, alarm),
     warnings: svc.scheduler.warningsFor(alarm),
   });
 
+  app.get('/planned', async (req): Promise<PlannedResponse> => ({
+    planned: plannedByOthers(svc, currentUser(req)),
+  }));
+
   app.get('/alarms', async (req) => {
     const user = currentUser(req);
-    return { alarms: svc.store.list(visibleOwner(user)).map((a) => toApiAlarm(svc, a, user)) };
+    return { alarms: svc.store.list(user.id).map((a) => toApiAlarm(svc, a)) };
   });
 
   app.post('/alarms', async (req, reply) => {
@@ -113,18 +155,18 @@ export function alarmRoutes(app: FastifyInstance): void {
     }
     checkActions(svc, input.actions, []);
     const alarm = svc.store.create(user.id, input);
-    return reply.code(201).send(saved(alarm, user));
+    return reply.code(201).send(saved(alarm));
   });
 
   app.get<{ Params: { id: string } }>('/alarms/:id', async (req) => {
     const user = currentUser(req);
-    const alarm = authorizeAlarm(user, load(req.params.id), 'read');
-    return toApiAlarm(svc, alarm, user);
+    const alarm = authorizeAlarm(user, load(req.params.id));
+    return toApiAlarm(svc, alarm);
   });
 
   app.put<{ Params: { id: string } }>('/alarms/:id', async (req) => {
     const user = currentUser(req);
-    const current = authorizeAlarm(user, load(req.params.id), 'write');
+    const current = authorizeAlarm(user, load(req.params.id));
     const input = parseBody(alarmUpdateSchema, req.body);
     if (input.revision !== current.revision) throw conflict(current.revision);
     checkActions(svc, input.actions, current.actions);
@@ -146,19 +188,19 @@ export function alarmRoutes(app: FastifyInstance): void {
     );
     if (!result) throw notFound('Alarm');
     if ('conflict' in result) throw conflict(result.conflict);
-    return saved(result, user);
+    return saved(result);
   });
 
   app.delete<{ Params: { id: string } }>('/alarms/:id', async (req, reply) => {
     const user = currentUser(req);
-    const alarm = authorizeAlarm(user, load(req.params.id), 'write');
+    const alarm = authorizeAlarm(user, load(req.params.id));
     svc.store.delete(alarm.id);
     return reply.code(204).send();
   });
 
   const setSkip = async (req: FastifyRequest<{ Params: { id: string } }>, skip: boolean) => {
     const user = currentUser(req);
-    const alarm = authorizeAlarm(user, load(req.params.id), 'write');
+    const alarm = authorizeAlarm(user, load(req.params.id));
     parseBody(emptyBodySchema, req.body);
     if (alarm.repeat_days.length === 0) {
       throw unprocessable('not_repeating', 'Only repeating alarms can be skipped.');
@@ -166,7 +208,7 @@ export function alarmRoutes(app: FastifyInstance): void {
     const result =
       alarm.skip_next === skip ? alarm : svc.store.update(alarm.id, { skip_next: skip });
     if (!result || 'conflict' in result) throw notFound('Alarm');
-    return toApiAlarm(svc, result, user);
+    return toApiAlarm(svc, result);
   };
 
   app.post<{ Params: { id: string } }>('/alarms/:id/skip', (req) => setSkip(req, true));
@@ -177,7 +219,7 @@ export function alarmRoutes(app: FastifyInstance): void {
     '/alarms/:id/actions/:actionId/run',
     async (req): Promise<RunNowResponse> => {
       const user = currentUser(req);
-      const alarm = authorizeAlarm(user, load(req.params.id), 'write');
+      const alarm = authorizeAlarm(user, load(req.params.id));
       parseBody(emptyBodySchema, req.body);
       const actionId = req.params.actionId.toLowerCase();
       const action = alarm.actions.find((a) => a.id === actionId);

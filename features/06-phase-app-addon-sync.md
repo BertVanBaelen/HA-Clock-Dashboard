@@ -1,8 +1,12 @@
-# Phase 6: App Add-on and Sync API
+# Phase 6: App Add-on, Sync API and Dismiss Flow
 
-**Goal:** The second add-on `alarm_actions_app` delivers the APK; when it runs, the dashboard offers the download, and the Android app can reach the dashboard API from anywhere through the optional external API (e.g. `https://api.vanbaelen.dev/clock` behind a Cloudflare tunnel) and sync.
+**Goal:** The second add-on `alarm_actions_app` delivers the APK; when it runs, the dashboard offers the download, and the Android app can reach the dashboard API from anywhere through the optional external API (e.g. `https://api.vanbaelen.dev/clock` behind a Cloudflare tunnel), sync, and report dismissals that start the "after dismissal" actions.
 
-**Objects and components:** [Client](../analysis/objects/client.md), [Occurrence](../analysis/objects/occurrence.md), [OccurrenceEvent](../analysis/objects/occurrence-event.md), [Dashboard add-on](../analysis/components/dashboard-addon.md), [App add-on](../analysis/components/app-addon.md), [Android app](../analysis/components/android-app.md)
+The dismiss flow is in this phase rather than phase 5 because the phone app is the only real source of dismiss and snooze reports. Until this phase, the panel hides the `after_dismiss` timing and the scheduler ignores such actions.
+
+**Objects and components:** [Client](../analysis/objects/client.md), [Occurrence](../analysis/objects/occurrence.md), [OccurrenceEvent](../analysis/objects/occurrence-event.md), [ExecutionRecord](../analysis/objects/execution-record.md), [Dashboard add-on](../analysis/components/dashboard-addon.md), [App add-on](../analysis/components/app-addon.md), [Android app](../analysis/components/android-app.md)
+
+## App add-on and sync
 
 | # | Feature | Requirements | Done when |
 |---|---|---|---|
@@ -18,8 +22,24 @@
 | 6.7 | API version policy and `min_client_api_version` in `GET /info` | FR-APP-06, TR-API-01, 06, TR-APP-08 | Documented and returned |
 | 6.8 | `docs/openapi.yaml` includes app endpoints, validated in CI | TR-API-05 | Contract matches implementation |
 | 6.9 | Occurrence id and schedule test vectors (DST, weekdays, skip) published for the app | TR-API-04, ATR-SYN-01 | In `docs/test-vectors/`, used by server and app tests |
-| 6.10 | Late dismissal handling for offline phones | FR-EXE-13, analysis section 6, SEC-06 | Accepted for the record; stale `after_dismiss` runs recorded `missed` |
 | 6.11 | Release pipeline: build and sign APK, copy it into the app add-on image, push both images to GHCR, publish checksum, then bump versions | TR-APP-02, TR-PLT-10, TR-QLT-07 | Add-on Store installs a release of the app add-on that contains the APK |
 | 6.12 | OAuth `client_id` page on GitHub Pages declaring the app's redirect URI | ATR-SYN-04 | HA login from the app accepts the redirect |
 
-**Exit criteria:** with both add-ons installed from the Add-on Store, a logged-in non-admin user can download the APK from the panel, and a test client built only from the OpenAPI file can call the external API through a Cloudflare tunnel with a non-admin user's HA token, sync alarms, edit them, and report a dismissal.
+## Dismiss flow
+
+The report endpoints can be built and tested with API tests and the OpenAPI test client; they must be in `docs/openapi.yaml` before app phase A4 starts.
+
+| # | Feature | Requirements | Done when |
+|---|---|---|---|
+| 6.13 | Occurrence state tracking for dismissed, snoozed and timed out | analysis §5, [Occurrence](../analysis/objects/occurrence.md) | States follow the state machine |
+| 6.14 | Dismissed / snoozed / timed-out endpoints (idempotent) | FR-EVT-01, 02 | Duplicates ignored |
+| 6.15 | `after_dismiss` runs with delay; the panel shows the `after_dismiss` timing again | FR-EXE-02, TR-SCH-07 | Runs after the dismissal plus delay |
+| 6.16 | Dismissal timeout, `timed_out` report and `expired` result | FR-EXE-03 | Run expires and is logged |
+| 6.17 | Early dismissal acts as skip for `before`/`at`/`after` | FR-EXE-11, TR-SCH-08, [OccurrenceEvent](../analysis/objects/occurrence-event.md) | Early dismiss cancels pending runs and starts `after_dismiss` |
+| 6.18 | Snooze logging (no schedule shift) | FR-EXE-07 | Recorded and on the event bus |
+| 6.19 | `alarm_actions_alarm_dismissed` and `alarm_actions_alarm_snoozed` events with minimal payloads (ids and timestamps) | FR-EVT-04, TR-EVT-01, SEC-06 | Events visible in Developer Tools |
+| 6.20 | Manual dismiss from panel | FR-EVT-03 | Button in UI |
+| 6.21 | Dismiss/snooze only by the alarm owner, for a real occurrence, within a plausible time window | SEC-06, SEC-03 | Foreign and implausible reports rejected; matrix test covers the endpoints on both listeners |
+| 6.10 | Late dismissal handling for offline phones | FR-EXE-13, analysis section 6, SEC-06 | Accepted for the record; stale `after_dismiss` runs recorded `missed` |
+
+**Exit criteria:** with both add-ons installed from the Add-on Store, a logged-in non-admin user can download the APK from the panel, and a test client built only from the OpenAPI file can call the external API through a Cloudflare tunnel with a non-admin user's HA token, sync alarms, edit them, and report a dismissal. The reported dismissal starts the "after dismissal" scripts; an alarm that is never dismissed results in an `expired` record.

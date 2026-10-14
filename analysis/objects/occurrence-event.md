@@ -33,7 +33,6 @@
 
 ## Requirements and features
 - Requirements: FR-EVT-01..04, FR-EXE-02, 03, 07, 11, 13; TR-SCH-07, 08, TR-EVT-01; SEC-06; AFR-SYN-03
-- [Phase 5](../../features/05-phase-dismiss-history.md): 5.2, 5.3, 5.4, 5.4a, 5.5, 5.6, 5.7, 5.10, 5.11
-- [Phase 6](../../features/06-phase-app-addon-sync.md): 6.10
+- [Phase 6](../../features/06-phase-app-addon-sync.md): 6.10, 6.14, 6.15, 6.16, 6.17, 6.18, 6.19, 6.20, 6.21
 - [App A3](../../features/app/A3-alarm-engine.md): A3.4, A3.7
 - [App A4](../../features/app/A4-editor-reporting.md): A4.5
