@@ -191,6 +191,29 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         default: { $ref: '#/components/responses/Error' }
+  /alarms/{id}/actions/{actionId}/run:
+    parameters:
+      - $ref: '#/components/parameters/AlarmId'
+      - name: actionId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [alarms]
+      operationId: runAction
+      description: |
+        Starts the action's script now ("run now", FR-EXE-08). Same checks and limits as a planned
+        run; the result is stored in the history. Owner only. No request body.
+      responses:
+        '200':
+          description: Result of the start.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RunNowResponse' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
 components:
   securitySchemes:
     ingress:
@@ -216,6 +239,15 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
   schemas:
+    RunNowResponse:
+      type: object
+      required: [result, reason]
+      properties:
+        result:
+          type: string
+          enum: [success, failed, skipped, unavailable]
+        reason: { type: [string, 'null'] }
+      additionalProperties: false
     Error:
       type: object
       required: [error, message]

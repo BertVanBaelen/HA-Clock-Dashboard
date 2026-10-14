@@ -5,6 +5,9 @@ import { HaClient } from './ha/client.js';
 import { HaDirectory } from './ha/directory.js';
 import { ScriptRegistry } from './ha/scripts.js';
 import { UserDirectory } from './ha/users.js';
+import { Executor } from './executor.js';
+import { HistoryStore } from './history.js';
+import { Scheduler } from './scheduler.js';
 import { AlarmStore } from './store.js';
 
 /** Everything the routes and background jobs share. Tests build it with fakes. */
@@ -17,6 +20,9 @@ export interface Services {
   users: UserDirectory;
   scripts: ScriptRegistry;
   store: AlarmStore;
+  history: HistoryStore;
+  executor: Executor;
+  scheduler: Scheduler;
   /** Wall clock in ms; injectable for tests. */
   now: () => number;
 }
@@ -44,7 +50,23 @@ export function createServices(
   const users = new UserDirectory(ha, log, now);
   const scripts = new ScriptRegistry(ha, log, config.settings.action_label);
   const store = new AlarmStore(db, now);
-  return { config, db, log, ha, directory, users, scripts, store, now };
+  const history = new HistoryStore(db, now);
+  const settings = config.settings;
+  const executor = new Executor(ha, users, scripts, history, settings, log);
+  const scheduler = new Scheduler({
+    db,
+    store,
+    history,
+    executor,
+    ha,
+    directory,
+    users,
+    scripts,
+    settings,
+    log,
+    now,
+  });
+  return { config, db, log, ha, directory, users, scripts, store, history, executor, scheduler, now };
 }
 
 /** Starts the background parts (HA connection, periodic refreshes). */
@@ -55,9 +77,11 @@ export function startServices(services: Services): void {
   }
   services.ha.start();
   services.users.startPeriodic();
+  services.scheduler.start();
 }
 
 export async function stopServices(services: Services): Promise<void> {
+  await services.scheduler.stop();
   services.users.stopPeriodic();
   services.scripts.stop();
   await services.ha.stop();

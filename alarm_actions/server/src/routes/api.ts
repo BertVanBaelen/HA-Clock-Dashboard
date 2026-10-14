@@ -3,10 +3,9 @@ import type { ActionsResponse, Info, Me, Settings } from '@alarm-actions/shared'
 import { unavailable } from '../errors.js';
 import { currentUser, installIdentity } from '../security.js';
 import { API_VERSION, APP_VERSION, MIN_CLIENT_API_VERSION } from '../version.js';
-import { alarmRoutes, type SaveWarningsHook } from './alarms.js';
+import { alarmRoutes } from './alarms.js';
 
 export type ApiOptions = {
-  saveWarnings?: SaveWarningsHook;
   /** Whether the "Alarm Actions App" add-on is installed and answering (phase 4). */
   appAvailable?: () => Promise<boolean>;
 };
@@ -44,5 +43,5 @@ export async function apiRoutes(app: FastifyInstance, options: ApiOptions): Prom
   // Read-only: settings are changed on the add-on configuration page (FR-SET-01).
   app.get('/settings', async (): Promise<Settings> => svc.config.settings);
 
-  alarmRoutes(app, options.saveWarnings ?? (() => []));
+  alarmRoutes(app);
 }

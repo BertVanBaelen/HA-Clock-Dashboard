@@ -204,7 +204,7 @@ describe('access control (analysis §4)', () => {
   const matrix: Array<{
     name: string;
     method: 'GET' | 'PUT' | 'DELETE' | 'POST';
-    path: (id: string) => string;
+    path: (id: string, alarm: Alarm) => string;
     body?: (alarm: Alarm) => unknown;
     expected: Record<Actor, number>;
   }> = [
@@ -234,6 +234,12 @@ describe('access control (analysis §4)', () => {
       expected: { 'user-a': 200, 'user-b': 404, admin: 403 },
     },
     {
+      name: 'run now',
+      method: 'POST',
+      path: (id, alarm) => `/api/v1/alarms/${id}/actions/${alarm.actions[0]!.id}/run`,
+      expected: { 'user-a': 200, 'user-b': 404, admin: 403 },
+    },
+    {
       name: 'delete',
       method: 'DELETE',
       path: (id) => `/api/v1/alarms/${id}`,
@@ -249,7 +255,7 @@ describe('access control (analysis §4)', () => {
         const res = await harness.request(
           actor,
           op.method,
-          op.path(alarm.id),
+          op.path(alarm.id, alarm),
           op.body ? op.body(alarm) : undefined,
         );
         expect(res.statusCode, res.body).toBe(op.expected[actor]);

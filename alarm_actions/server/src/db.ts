@@ -45,6 +45,38 @@ const migrations: string[] = [
   );
   CREATE INDEX tombstones_owner ON tombstones (owner_user_id, change_seq);
   `,
+  // 3: occurrences and execution records (TR-SCH-02, 06, TR-DAT-03). Records have no foreign key:
+  // history outlives deleted alarms until it expires.
+  `
+  CREATE TABLE occurrences (
+    id           TEXT PRIMARY KEY,
+    alarm_id     TEXT NOT NULL REFERENCES alarms (id) ON DELETE CASCADE,
+    scheduled_at INTEGER NOT NULL,
+    status       TEXT NOT NULL,
+    action_ids   TEXT,
+    runs_done    INTEGER NOT NULL DEFAULT 0,
+    updated_at   INTEGER NOT NULL
+  );
+  CREATE INDEX occurrences_alarm ON occurrences (alarm_id, status);
+  CREATE INDEX occurrences_open ON occurrences (runs_done, status);
+  CREATE TABLE execution_records (
+    id               TEXT PRIMARY KEY,
+    planned_run_id   TEXT NOT NULL UNIQUE,
+    owner_user_id    TEXT NOT NULL,
+    alarm_id         TEXT NOT NULL,
+    alarm_action_id  TEXT NOT NULL,
+    occurrence_id    TEXT,
+    script_entity_id TEXT NOT NULL,
+    planned_at       INTEGER NOT NULL,
+    executed_at      INTEGER,
+    result           TEXT NOT NULL,
+    reason           TEXT,
+    created_at       INTEGER NOT NULL
+  );
+  CREATE INDEX records_owner ON execution_records (owner_user_id, created_at);
+  CREATE INDEX records_alarm ON execution_records (alarm_id, created_at);
+  CREATE INDEX records_started ON execution_records (executed_at, script_entity_id);
+  `,
 ];
 
 export const SCHEMA_VERSION = migrations.length;

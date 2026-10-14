@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   LIMITS,
@@ -9,8 +10,10 @@ import {
   type AlarmActionInput,
   type AlarmAction,
   type AlarmSaveResponse,
+  type RunNowResponse,
 } from '@alarm-actions/shared';
 import { conflict, notFound, unavailable, unprocessable } from '../errors.js';
+import { DEFERRED } from '../executor.js';
 import type { HaUser } from '../ha/users.js';
 import { authorizeAlarm, currentUser, visibleOwner } from '../security.js';
 import type { Services } from '../services.js';
@@ -50,9 +53,6 @@ export function toApiAlarm(svc: Services, alarm: StoredAlarm, viewer: HaUser): A
   };
 }
 
-/** Hook for save warnings (phase 3 adds `before` runs that are already past). */
-export type SaveWarningsHook = (alarm: StoredAlarm) => AlarmSaveResponse['warnings'];
-
 /**
  * Checks the action caps (SEC-05) and the label gate for scripts that are new on this alarm:
  * a script that is already attached may stay even when it lost its label (shown as
@@ -90,14 +90,14 @@ function checkActions(
   }
 }
 
-export function alarmRoutes(app: FastifyInstance, saveWarnings: SaveWarningsHook): void {
+export function alarmRoutes(app: FastifyInstance): void {
   const svc = app.svc;
 
   const load = (id: string) => (UUID_PARAM.test(id) ? svc.store.get(id.toLowerCase()) : null);
 
   const saved = (alarm: StoredAlarm, user: HaUser): AlarmSaveResponse => ({
     alarm: toApiAlarm(svc, alarm, user),
-    warnings: saveWarnings(alarm),
+    warnings: svc.scheduler.warningsFor(alarm),
   });
 
   app.get('/alarms', async (req) => {
@@ -171,4 +171,24 @@ export function alarmRoutes(app: FastifyInstance, saveWarnings: SaveWarningsHook
 
   app.post<{ Params: { id: string } }>('/alarms/:id/skip', (req) => setSkip(req, true));
   app.post<{ Params: { id: string } }>('/alarms/:id/unskip', (req) => setSkip(req, false));
+
+  // "Run now" (FR-EXE-08): same executor and limits as scheduled runs; owner only.
+  app.post<{ Params: { id: string; actionId: string } }>(
+    '/alarms/:id/actions/:actionId/run',
+    async (req): Promise<RunNowResponse> => {
+      const user = currentUser(req);
+      const alarm = authorizeAlarm(user, load(req.params.id), 'write');
+      parseBody(emptyBodySchema, req.body);
+      const actionId = req.params.actionId.toLowerCase();
+      const action = alarm.actions.find((a) => a.id === actionId);
+      if (!action) throw notFound('Action');
+      const outcome = await svc.executor.run(
+        svc.scheduler.manualSubject(alarm, action, crypto.randomUUID()),
+      );
+      if (outcome === DEFERRED) {
+        throw unavailable('Home Assistant is not reachable right now. Try again shortly.');
+      }
+      return outcome;
+    },
+  );
 }
