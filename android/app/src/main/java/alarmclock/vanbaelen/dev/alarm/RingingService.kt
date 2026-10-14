@@ -270,7 +270,9 @@ class RingingService : Service() {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
-            .setSilent(true)
+            // No setSilent(): AndroidX implements it with a group that suppresses alerting, and
+            // SystemUI then also suppresses the full-screen intent. The channel itself has no sound.
+            .setOnlyAlertOnce(true)
             .setFullScreenIntent(fullScreen, true)
             .setContentIntent(fullScreen)
             .addAction(0, getString(R.string.snooze), serviceIntent(this, ACTION_SNOOZE))

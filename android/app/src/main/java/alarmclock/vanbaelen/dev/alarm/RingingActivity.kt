@@ -4,7 +4,6 @@ import alarmclock.vanbaelen.dev.ui.Format
 import alarmclock.vanbaelen.dev.R
 import alarmclock.vanbaelen.dev.app
 import alarmclock.vanbaelen.dev.ui.AppTheme
-import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -61,7 +60,6 @@ class RingingActivity : ComponentActivity() {
     private fun stop() {
         RingingService.send(this, RingingService.ACTION_DISMISS)
         // Stopping the alarm usually means getting up: offer to unlock.
-        getSystemService(KeyguardManager::class.java)?.takeIf { it.isKeyguardLocked }?.requestDismissKeyguard(this, null)
         finish()
     }
 
