@@ -77,7 +77,7 @@ jobs:
           export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$ANDROID_KEYSTORE_FILE"
           chmod +x gradlew
-          ./gradlew --no-daemon testReleaseUnitTest assembleRelease -PappVersion="$VERSION"
+          ./gradlew --no-daemon testDebugUnitTest assembleRelease -PappVersion="$VERSION"
           rm -f "$ANDROID_KEYSTORE_FILE"
           apk=app/build/outputs/apk/release/app-release.apk
           buildtools="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
