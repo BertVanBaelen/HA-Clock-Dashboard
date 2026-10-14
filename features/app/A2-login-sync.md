@@ -2,6 +2,8 @@
 
 **Goal:** The user can log in and see their alarms, stored locally.
 
+**Objects and components:** [Android app](../../analysis/components/android-app.md), [Client](../../analysis/objects/client.md), [Alarm](../../analysis/objects/alarm.md)
+
 Depends on dashboard phases 2 and 6; the spike A2.0 only needs dashboard phase 1.
 
 | # | Feature | Requirements | Done when |

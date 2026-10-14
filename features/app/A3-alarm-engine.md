@@ -2,6 +2,8 @@
 
 **Goal:** A reliable full-screen alarm that rings with no network and through Do Not Disturb. This is the highest-risk part, so it starts as soon as A1 is done, in parallel with A2, using locally created test alarms.
 
+**Objects and components:** [Android app](../../analysis/components/android-app.md), [Occurrence](../../analysis/objects/occurrence.md), [OccurrenceEvent](../../analysis/objects/occurrence-event.md), [Client](../../analysis/objects/client.md)
+
 | # | Feature | Requirements | Done when |
 |---|---|---|---|
 | A3.1 | Exact scheduling with `setAlarmClock` from the local database | AFR-RNG-01, ATR-RNG-01 | Alarm fires on time, also in Doze |

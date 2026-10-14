@@ -1,6 +1,6 @@
 # Feature Roadmap
 
-Scope: this repository (`HA-Clock-Dashboard`) is a Home Assistant **add-on repository** with two tracks that ship together in one release: the **dashboard add-on** `alarm_actions` (phases 1-7) and the **Android app** (A1-A5, in `android/`), which is delivered through the second add-on `alarm_actions_app`. Requirement IDs refer to [`../requirements`](../requirements).
+Scope: this repository (`HA-Clock-Dashboard`) is a Home Assistant **add-on repository** with two tracks that ship together in one release: the **dashboard add-on** `alarm_actions` (phases 1-7) and the **Android app** (A1-A5, in `android/`), which is delivered through the second add-on `alarm_actions_app`. Requirement IDs refer to [`../requirements`](../requirements). Each phase lists the [domain objects and components](../analysis/domain-analysis.md) it builds; those files hold the rules and decisions.
 
 ## Dashboard track (`alarm_actions/`)
 | Phase | Name | Outcome | Status |

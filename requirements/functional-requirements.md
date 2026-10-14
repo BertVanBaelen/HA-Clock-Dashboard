@@ -14,7 +14,7 @@ IDs are stable; reference them in issues and PRs.
 | FR-ALM-06 | A one-time alarm disables itself after it has fired; actions of the occurrence that fired still complete | M |
 | FR-ALM-07 | The panel shows the next trigger time of each alarm | M |
 | FR-ALM-08 | Alarms can be duplicated | C |
-| FR-ALM-09 | An alarm can have its own snooze duration; otherwise the default from settings applies (D23) | S |
+| FR-ALM-09 | An alarm can have its own snooze duration; otherwise the default from settings applies ([Alarm](../analysis/objects/alarm.md)) | S |
 
 ## 2. Actions
 | ID | Requirement | Prio |
@@ -40,10 +40,10 @@ IDs are stable; reference them in issues and PRs.
 | FR-EXE-06 | Every execution result (success, failed, skipped, missed) is recorded in a history | M |
 | FR-EXE-07 | Snoozing does not shift *before* / *at* / *after* actions; it is only logged | M |
 | FR-EXE-08 | A user can trigger one of their own attached actions manually from the panel ("run now") for testing | S |
-| FR-EXE-09 | If saving or editing an alarm leaves a *before* action in the past for the next occurrence, that action is skipped for that occurrence and recorded as `missed` (decision D3) | M |
-| FR-EXE-10 | Execution is rate limited and duplicate starts are suppressed to protect devices. Starts beyond the limit are dropped and logged as skipped (D21) | M |
-| FR-EXE-11 | Dismissing an alarm up to 60 min before it rings cancels its *before* / *at* / *after* actions not yet run; *after dismissal* actions run from the dismissal time (D22) | M |
-| FR-EXE-12 | When the owner's phone is in a different time zone than HA, no actions run for that owner's alarms; they are logged as skipped ("user away") and the panel shows the away state (D20) | M |
+| FR-EXE-09 | If saving or editing an alarm leaves a *before* action in the past for the next occurrence, that action is skipped for that occurrence and recorded as `missed` ([AlarmAction](../analysis/objects/alarm-action.md)) | M |
+| FR-EXE-10 | Execution is rate limited and duplicate starts are suppressed to protect devices. Starts beyond the limit are dropped and logged as skipped ([Settings](../analysis/objects/settings.md)) | M |
+| FR-EXE-11 | Dismissing an alarm up to 60 min before it rings cancels its *before* / *at* / *after* actions not yet run; *after dismissal* actions run from the dismissal time ([OccurrenceEvent](../analysis/objects/occurrence-event.md)) | M |
+| FR-EXE-12 | When the owner's phone is in a different time zone than HA, no actions run for that owner's alarms; they are logged as skipped ("user away") and the panel shows the away state ([Client](../analysis/objects/client.md)) | M |
 | FR-EXE-13 | A dismissal reported late by an offline phone does not start an *after dismissal* action whose time is already past by more than the grace period; it is logged as missed | M |
 | FR-EXE-14 | Editing an alarm while it is ringing or snoozed does not cancel the running occurrence's remaining actions, except actions that were removed or disabled | M |
 
@@ -70,7 +70,7 @@ IDs are stable; reference them in issues and PRs.
 | FR-UI-10 | The panel shows the user's connected phones with their last sync time, and an "away, actions paused" banner when FR-EXE-12 applies | S |
 
 ## 6. Settings
-Settings are options of the dashboard add-on (Settings → Add-ons → Alarm Actions → Configuration), so only admins can change them (D30). The panel shows them read-only.
+Settings are options of the dashboard add-on (Settings → Add-ons → Alarm Actions → Configuration), so only admins can change them ([Settings](../analysis/objects/settings.md)). The panel shows them read-only.
 
 | ID | Requirement | Prio |
 |---|---|---|
@@ -79,19 +79,19 @@ Settings are options of the dashboard add-on (Settings → Add-ons → Alarm Act
 | FR-SET-03 | Configurable label name for action scripts (default `alarm_action`) | C |
 | FR-SET-04 | Configurable rate limit and log level | C |
 
-There are no Home Assistant entities (D31). The phone's next alarm appears in the HA Companion App's own *Next alarm* sensor.
+There are no Home Assistant entities ([Dashboard add-on](../analysis/components/dashboard-addon.md)). The phone's next alarm appears in the HA Companion App's own *Next alarm* sensor.
 
 ## 7. Access and ownership
 | ID | Requirement | Prio |
 |---|---|---|
 | FR-ACC-01 | Every alarm has an owner (the HA user who created it) | M |
-| FR-ACC-02 | Users see and edit only their own alarms and history; admins can **view** all alarms and history but not change other users' alarms (D19) | M |
+| FR-ACC-02 | Users see and edit only their own alarms and history; admins can **view** all alarms and history but not change other users' alarms ([Alarm](../analysis/objects/alarm.md)) | M |
 | FR-ACC-03 | Shared household alarms visible to all users | C |
-| FR-ACC-04 | Alarms of a deleted or deactivated HA user stop running and are disabled; they stay disabled if the user is reactivated (D24) | M |
+| FR-ACC-04 | Alarms of a deleted or deactivated HA user stop running and are disabled; they stay disabled if the user is reactivated ([Alarm](../analysis/objects/alarm.md)) | M |
 | FR-ACC-05 | Requests for alarms the user may not access behave as "not found" | M |
 
 ## 8. App distribution and sync (server side)
-The Android app is offered by a second, optional add-on in the same repository, "Alarm Actions App" (D32). The app itself is specified in [app-requirements.md](app-requirements.md).
+The Android app is offered by a second, optional add-on in the same repository, "Alarm Actions App" ([App add-on](../analysis/components/app-addon.md)). The app itself is specified in [app-requirements.md](app-requirements.md).
 
 | ID | Requirement | Prio |
 |---|---|---|
@@ -108,5 +108,5 @@ See [security-requirements.md](security-requirements.md) (IDs `SEC-*`). Visible 
 ## 10. Non-goals (v1)
 Creating HA automations, HA entities for alarms, HA Container or Core installations (no Supervisor, so no add-ons), iOS app, conditions on actions, push-based instant sync, multiple time zones per alarm, Play Store release.
 
-## Decisions on earlier open questions
-See [../analysis/decisions.md](../analysis/decisions.md): alarms are per user (D1), dismissal timeout 60 minutes (D2), late *before* actions are skipped with a warning (D3), admins view-only (D19), away by time zone (D20), rate limit drops (D21), early dismissal (D22), two add-ons (D28), settings in add-on configuration (D30), no entities (D31), app add-on (D32).
+## Decisions
+Decisions are recorded in the file of the object or component they concern: alarms are per user ([Alarm](../analysis/objects/alarm.md)), dismissal timeout 60 minutes ([Occurrence](../analysis/objects/occurrence.md)), late *before* actions are skipped with a warning ([AlarmAction](../analysis/objects/alarm-action.md)), admins view-only ([Alarm](../analysis/objects/alarm.md)), away by time zone ([Client](../analysis/objects/client.md)), rate limit drops ([Settings](../analysis/objects/settings.md)), early dismissal ([OccurrenceEvent](../analysis/objects/occurrence-event.md)), two add-ons ([Dashboard add-on](../analysis/components/dashboard-addon.md)), settings in add-on configuration ([Settings](../analysis/objects/settings.md)), no entities ([Dashboard add-on](../analysis/components/dashboard-addon.md)), app add-on ([App add-on](../analysis/components/app-addon.md)).

@@ -1,6 +1,6 @@
 # Android App Requirements
 
-The Android app lives in `android/` in this repository. Its APK is shipped inside the second add-on, "Alarm Actions App" (`alarm_actions_app`); when that add-on runs, the dashboard shows an "Install app" tab with the download (D28, D32). The server side (sync, download) is specified in the functional and technical requirements. This document covers the app itself.
+The Android app lives in `android/` in this repository. Its APK is shipped inside the second add-on, "Alarm Actions App" (`alarm_actions_app`); when that add-on runs, the dashboard shows an "Install app" tab with the download ([Dashboard add-on](../analysis/components/dashboard-addon.md), [App add-on](../analysis/components/app-addon.md)). The server side (sync, download) is specified in the functional and technical requirements. This document covers the app itself.
 
 Priority: **M** must (v1), **S** should, **C** could.
 
@@ -16,20 +16,20 @@ Priority: **M** must (v1), **S** should, **C** could.
 | AFR-RNG-02 | The alarm shows a **full-screen** screen over the lock screen and turns the screen on | M |
 | AFR-RNG-03 | The alarm **rings through Do Not Disturb** | M |
 | AFR-RNG-04 | The user can snooze (the alarm's own snooze duration, else the server default of 9 min) or stop the alarm | M |
-| AFR-RNG-05 | The user picks the alarm sound (stored on the phone only, D23); volume ramps up gently (optional) | S |
+| AFR-RNG-05 | The user picks the alarm sound (stored on the phone only, [Alarm](../analysis/objects/alarm.md)); volume ramps up gently (optional) | S |
 | AFR-RNG-06 | Alarms are rescheduled after reboot, app update, time change and time zone change | M |
 | AFR-RNG-07 | If the phone was off at alarm time, the missed alarm is shown on next start | S |
-| AFR-RNG-08 | When the phone's time zone differs from HA's, alarms ring at the local wall-clock time and the app shows "away: Home Assistant actions paused". No dismiss/snooze reports are sent while away (D20) | M |
+| AFR-RNG-08 | When the phone's time zone differs from HA's, alarms ring at the local wall-clock time and the app shows "away: Home Assistant actions paused". No dismiss/snooze reports are sent while away ([Client](../analysis/objects/client.md)) | M |
 | AFR-SYN-01 | The app syncs on open, on time zone change, and periodically in the background (WorkManager, about every 15 min), plus a manual "sync now". On every sync it registers itself and reports its time zone (`POST /clients`) | M |
 | AFR-SYN-02 | Edits made offline are queued and sent when the connection returns; conflicts are shown to the user | S |
 | AFR-SYN-03 | Dismiss, snooze and timed-out reports are queued when offline and sent later | M |
 | AFR-SYN-04 | The app shows the sync state ("last synced", "offline") so the user knows alarms are current | M |
 | AFR-SET-01 | A first-run guide requests the needed permissions: exact alarms, full-screen intent, notifications, battery optimisation exemption | M |
 | AFR-SET-02 | The app shows a clear message when the dashboard is too old or too new for the app (API version check) | M |
-| AFR-SET-03 | **In-app update (D33):** the app checks `GET /app/info` on every sync and, when a newer APK is in the app add-on, shows "Update available". One tap downloads and installs it over the existing app; alarms, login and settings are kept, no uninstall needed | M |
+| AFR-SET-03 | **In-app update ([Android app](../analysis/components/android-app.md)):** the app checks `GET /app/info` on every sync and, when a newer APK is in the app add-on, shows "Update available". One tap downloads and installs it over the existing app; alarms, login and settings are kept, no uninstall needed | M |
 | AFR-SET-04 | A health check screen tells the user if something would stop the alarm from ringing (permission missing, battery restriction, DND channel blocked) | S |
 | AFR-SET-05 | The install guide explains allowing "Install unknown apps": once for the browser (first install) and once for the app itself (in-app updates) | M |
-| AFR-NGT-01 | **Night display (D34):** a bedside clock mode with a large dimmed clock and the next alarm, keeping the screen on. Started manually or, optionally, automatically while charging during a set time window. A ringing alarm takes over the screen | S |
+| AFR-NGT-01 | **Night display ([Android app](../analysis/components/android-app.md)):** a bedside clock mode with a large dimmed clock and the next alarm, keeping the screen on. Started manually or, optionally, automatically while charging during a set time window. A ringing alarm takes over the screen | S |
 
 ## 2. Technical requirements
 | ID | Requirement |
@@ -44,7 +44,7 @@ Priority: **M** must (v1), **S** should, **C** could.
 | ATR-RNG-05 | Ringing never depends on the network: the engine reads only from Room |
 | ATR-RNG-06 | A guard against stuck ringing: the alarm stops after a maximum duration (default 10 min) and is reported as `timed_out` |
 | ATR-RNG-07 | Exact alarms use the `USE_EXACT_ALARM` permission (allowed for alarm-clock apps; falls back to `SCHEDULE_EXACT_ALARM` handling). Full-screen intent permission on Android 14+ is verified at runtime, since grant rules differ for sideloaded apps |
-| ATR-SYN-01 | The app computes occurrence ids and alarm times exactly as the server does, verified against the published test vectors in `docs/` (ids, DST, weekdays, skip), so it can report events offline. While away it schedules in its own time zone (D20) |
+| ATR-SYN-01 | The app computes occurrence ids and alarm times exactly as the server does, verified against the published test vectors in `docs/` (ids, DST, weekdays, skip), so it can report events offline. While away it schedules in its own time zone ([Client](../analysis/objects/client.md)) |
 | ATR-SYN-02 | Sync uses `GET /sync?since=<change_seq>`; writes use optimistic `revision`; reports use the dismiss/snooze/timed-out endpoints |
 | ATR-SYN-05 | **Ingress access (TR-APP-06):** after OAuth login the app opens the HA websocket, sends `supervisor/api` `GET /addons/<slug>/info` for the `ingress_entry` and `POST /ingress/session` for a session token, then calls `<ha_url>/api/hassio_ingress/<entry>/api/v1/...` with the `ingress_session` cookie. It renews the session with `/ingress/validate_session` and creates a new one on 401. Whether a **non-admin** user may make these calls is verified first (spike A2.0); if not, the design must be revisited before A2 continues |
 | ATR-SYN-06 | The dashboard add-on slug is deterministic for this repository (`<hash>_alarm_actions`) and built into the app as default; the user can override it by scanning the QR code or typing the slug shown on the "Install app" tab (TR-APP-09) |

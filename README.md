@@ -58,7 +58,7 @@ If HA is reachable from the internet: use HTTPS through a reverse proxy, enable 
 - [Android app requirements](requirements/app-requirements.md)
 - [Security requirements](requirements/security-requirements.md)
 - [Domain analysis](analysis/domain-analysis.md)
-- [Decision log](analysis/decisions.md)
+- Domain objects ([analysis/objects](analysis/objects/)) and components ([analysis/components](analysis/components/)): one file per object or component with its rules, decisions, requirements and features
 - [Feature roadmap](features/00-roadmap.md)
 
 ## Repository layout
@@ -68,7 +68,7 @@ alarm_actions/                     dashboard add-on: config.yaml, Dockerfile, se
 alarm_actions_app/                 app add-on: config.yaml, Dockerfile, APK server (APK added by CI, not in git)
 android/                           Android app source (Kotlin)
 requirements/                      functional, technical, app, security requirements
-analysis/                          domain analysis and decision log
+analysis/                          domain overview, one file per object and component
 features/                          phased feature plan (dashboard + app tracks)
 docs/openapi.yaml                  API contract (to be created)
 LICENSE

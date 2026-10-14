@@ -2,6 +2,8 @@
 
 **Goal:** A stable, documented v1.0.0.
 
+**Objects and components:** [Dashboard add-on](../analysis/components/dashboard-addon.md), [App add-on](../analysis/components/app-addon.md), [Android app](../analysis/components/android-app.md), [Settings](../analysis/objects/settings.md)
+
 | # | Feature | Requirements | Done when |
 |---|---|---|---|
 | 7.1 | Final access check: matrix tests green, no route reachable without ingress identity, no ports, webhooks or public URLs | SEC-01, 02, 03, 11, 12 | Verified against analysis sections 13 and 14 |

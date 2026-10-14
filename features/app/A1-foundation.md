@@ -2,6 +2,8 @@
 
 **Goal:** An empty Android app builds, is signed in CI, and ships inside the app add-on image.
 
+**Objects and components:** [Android app](../../analysis/components/android-app.md), [App add-on](../../analysis/components/app-addon.md)
+
 | # | Feature | Requirements | Done when |
 |---|---|---|---|
 | A1.1 | Android project in `android/` (Kotlin, Compose, Room, WorkManager), application id decided | ATR-PLT-01..03 | Project builds locally and in CI |

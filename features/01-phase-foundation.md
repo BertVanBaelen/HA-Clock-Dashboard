@@ -2,6 +2,8 @@
 
 **Goal:** The add-on repository can be added in the Add-on Store, the dashboard add-on installs, starts and connects to HA Core without errors.
 
+**Objects and components:** [Dashboard add-on](../analysis/components/dashboard-addon.md)
+
 | # | Feature | Requirements | Done when |
 |---|---|---|---|
 | 1.1 | Repository skeleton: `repository.yaml`, `alarm_actions/` with `config.yaml`, `build.yaml`, `Dockerfile`, `DOCS.md`, `CHANGELOG.md`, `icon.png`, `logo.png`, `translations/en.yaml`, `service/main.py` | TR-PLT-01, 07, 08 | Folder structure matches technical requirements |
@@ -10,7 +12,7 @@
 | 1.4 | Release workflow: build and push images to GHCR, then bump `config.yaml` versions; first release `0.1.0` | TR-PLT-02, 06, 10 | Add-on Store shows and installs the version without a local build |
 | 1.5 | Translations scaffold for add-on options (English) | FR-UI-08, TR-PLT-08 | `translations/en.yaml` present |
 | 1.6 | Test harness: pytest with the aiohttp test client and a fake HA websocket server | TR-QLT-01 | One passing startup test |
-| 1.7 | MIT `LICENSE` and issue templates | D8 | Files present |
+| 1.7 | MIT `LICENSE` and issue templates | [Dashboard add-on](../analysis/components/dashboard-addon.md) | Files present |
 | 1.8 | `ha_client.py`: websocket to Core with `SUPERVISOR_TOKEN`, reconnect with backoff, `get_config` time zone | TR-HA-01, 02 | Connects on HA OS test instance; survives a Core restart |
 | 1.9 | Release check: both `config.yaml` versions equal the tag | TR-QLT-07 | Mismatched version fails the workflow |
 | 1.10 | SQLite storage file in `/data`, hot backup with `backup_pre` snapshot | TR-DAT-01, 07 | HA backup contains a consistent database |

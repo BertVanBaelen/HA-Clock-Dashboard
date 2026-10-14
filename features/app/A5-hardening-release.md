@@ -2,6 +2,8 @@
 
 **Goal:** The alarm can be trusted to wake you.
 
+**Objects and components:** [Android app](../../analysis/components/android-app.md), [App add-on](../../analysis/components/app-addon.md)
+
 | # | Feature | Requirements | Done when |
 |---|---|---|---|
 | A5.1 | Device test run on several Android versions and manufacturers with aggressive battery management | ATR-QLT-02 | Results recorded, workarounds documented |

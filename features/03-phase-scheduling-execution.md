@@ -2,6 +2,8 @@
 
 **Goal:** Actions run in Home Assistant at the right time, independent of any phone.
 
+**Objects and components:** [Alarm](../analysis/objects/alarm.md), [AlarmAction](../analysis/objects/alarm-action.md), [ActionDefinition](../analysis/objects/action-definition.md), [Occurrence](../analysis/objects/occurrence.md), [PlannedRun](../analysis/objects/planned-run.md), [ExecutionRecord](../analysis/objects/execution-record.md)
+
 | # | Feature | Requirements | Done when |
 |---|---|---|---|
 | 3.1 | Scheduler: planned runs for `before`, `at`, `after`, tracked per occurrence (several active occurrences per alarm) | FR-EXE-01, TR-SCH-02, 03, 06 | Scripts start at planned time; overlapping occurrences tested |
@@ -15,11 +17,11 @@
 | 3.9 | Scheduler test suite | TR-QLT-02 | DST, midnight, restart, skip covered |
 | 3.10 | "Run now" test endpoint | FR-EXE-08 | Action can be tested manually |
 | 3.11 | Executor passes no parameters; only `script.turn_on` for label-gated scripts | SEC-04, 02, SEC-11 | Label-gate tests pass |
-| 3.12 | Script-start rate limit (excess dropped, logged `skipped`) and duplicate suppression | FR-EXE-10, SEC-05, SEC-11, D21 | Flood test stays within limit; dropped starts recorded |
-| 3.13 | Owner validity check at execution; alarm disabled if owner inactive and stays disabled after reactivation | FR-ACC-04, SEC-03, D24 | Test with deleted and reactivated user |
+| 3.12 | Script-start rate limit (excess dropped, logged `skipped`) and duplicate suppression | FR-EXE-10, SEC-05, SEC-11, [Settings](../analysis/objects/settings.md) | Flood test stays within limit; dropped starts recorded |
+| 3.13 | Owner validity check at execution; alarm disabled if owner inactive and stays disabled after reactivation | FR-ACC-04, SEC-03, [Alarm](../analysis/objects/alarm.md) | Test with deleted and reactivated user |
 | 3.14 | "Before" action already past on save: skip, record `missed` | FR-EXE-09 | Verified, warning flag returned by API |
 | 3.15 | Bounded next-occurrence calculation | SEC-05 | No unbounded loops, DST tests |
 | 3.16 | Core unavailable at run time: retry until the grace period ends, then `missed`; recalculate on reconnect | TR-HA-01, 05, TR-SCH-04 | Test with fake Core going down around a planned run |
-| 3.17 | Add-on restart (e.g. after saving options) within the grace period runs due actions once | TR-SCH-05, D30 | Restart test passes |
+| 3.17 | Add-on restart (e.g. after saving options) within the grace period runs due actions once | TR-SCH-05, [Settings](../analysis/objects/settings.md) | Restart test passes |
 
 **Exit criteria:** An alarm with a *before*, *at*, and *after* action runs each at the right moment, including across an add-on restart and a HA Core restart.

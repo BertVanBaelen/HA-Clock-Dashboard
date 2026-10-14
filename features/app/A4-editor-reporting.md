@@ -2,6 +2,8 @@
 
 **Goal:** The app can do everything the panel can, and reports dismiss/snooze so "after dismissal" actions work.
 
+**Objects and components:** [Android app](../../analysis/components/android-app.md), [Alarm](../../analysis/objects/alarm.md), [AlarmAction](../../analysis/objects/alarm-action.md), [OccurrenceEvent](../../analysis/objects/occurrence-event.md)
+
 Depends on A2 and A3.
 
 | # | Feature | Requirements | Done when |

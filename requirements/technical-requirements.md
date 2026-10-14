@@ -1,6 +1,6 @@
 # Technical Requirements
 
-Architecture (decision D28): this repository is a **Home Assistant add-on repository** with two add-ons. The user adds one repository URL in the Add-on Store and installs the add-ons they want.
+Architecture ([Dashboard add-on](../analysis/components/dashboard-addon.md)): this repository is a **Home Assistant add-on repository** with two add-ons. The user adds one repository URL in the Add-on Store and installs the add-ons they want.
 
 | Add-on | Slug | Purpose |
 |---|---|---|
@@ -25,7 +25,7 @@ Architecture (decision D28): this repository is a **Home Assistant add-on reposi
 ## 1. Platform
 | ID | Requirement |
 |---|---|
-| TR-PLT-01 | The repository is a HA add-on repository (`repository.yaml` at the root) containing two add-ons: `alarm_actions` and `alarm_actions_app` (D28) |
+| TR-PLT-01 | The repository is a HA add-on repository (`repository.yaml` at the root) containing two add-ons: `alarm_actions` and `alarm_actions_app` ([Dashboard add-on](../analysis/components/dashboard-addon.md)) |
 | TR-PLT-02 | Both add-ons share one semantic version, set in each `config.yaml`, released together with a GitHub Release and a `CHANGELOG.md` per add-on |
 | TR-PLT-03 | Requires a Supervisor installation (**HA OS or Supervised**). The `homeassistant` key in `config.yaml` sets the minimum Core version (at least 2024.4, for labels). Tested against the current stable and previous Core release |
 | TR-PLT-04 | Service code in Python 3.12+, fully async (`aiohttp`), on the official HA base image (`ghcr.io/home-assistant/{arch}-base-python`) |
@@ -74,8 +74,8 @@ LICENSE                         MIT
 | TR-DAT-02 | The database has a schema version; migrations run on start |
 | TR-DAT-03 | Execution history is capped per user (default last 200 entries, 30 days) |
 | TR-DAT-04 | Every change is a transaction. Write-ahead execution records (TR-SCH-06) are committed before the script call |
-| TR-DAT-05 | IDs are UUIDv4 strings, generated server-side. Action ids are preserved when a `PUT` sends an existing id (D26) |
-| TR-DAT-06 | One monotonic `change_seq`. Every alarm change (user or system) and every deletion takes the next value; deletions are kept as tombstones for at least 30 days (D25) |
+| TR-DAT-05 | IDs are UUIDv4 strings, generated server-side. Action ids are preserved when a `PUT` sends an existing id ([Occurrence](../analysis/objects/occurrence.md)) |
+| TR-DAT-06 | One monotonic `change_seq`. Every alarm change (user or system) and every deletion takes the next value; deletions are kept as tombstones for at least 30 days ([Client](../analysis/objects/client.md)) |
 | TR-DAT-07 | `backup: hot` with a `backup_pre` step that writes a consistent SQLite snapshot. Cold backups are not used, because they stop the scheduler and HA's nightly backup runs in the early morning, when alarms are due |
 
 ## 4. Connection to Home Assistant Core
@@ -97,8 +97,8 @@ LICENSE                         MIT
 | TR-SCH-05 | On add-on start, planned runs within the grace period are executed; older are recorded as `missed` |
 | TR-SCH-06 | Planned runs have a deterministic id `<occurrence_id>_<alarm_action_id>` to guarantee exactly-once execution. The execution record is committed as `running` **before** the script call; a record still `running` at startup becomes `failed` ("interrupted") and is not retried |
 | TR-SCH-07 | "After dismissal" runs are created on the dismiss event, not pre-scheduled; a timeout timer (or a `timed_out` event) expires them. A computed run time already past by more than the grace period is recorded as `missed` |
-| TR-SCH-08 | Early dismissal (before the occurrence fires) cancels its `before`/`at`/`after` runs not yet started (D22) |
-| TR-SCH-09 | When the owner is away (latest client `time_zone` ≠ HA time zone, D20), the executor records the owner's runs as `skipped` ("user away") instead of running them |
+| TR-SCH-08 | Early dismissal (before the occurrence fires) cancels its `before`/`at`/`after` runs not yet started ([OccurrenceEvent](../analysis/objects/occurrence-event.md)) |
+| TR-SCH-09 | When the owner is away (latest client `time_zone` ≠ HA time zone, [Client](../analysis/objects/client.md)), the executor records the owner's runs as `skipped` ("user away") instead of running them |
 
 ## 6. Execution
 | ID | Requirement |
@@ -107,7 +107,7 @@ LICENSE                         MIT
 | TR-EXE-02 | Before each execution, verify the script entity exists and still has the configured label; otherwise record `unavailable` |
 | TR-EXE-03 | Failures never stop other actions; each is isolated and logged |
 | TR-EXE-04 | Label lookup uses the cached registries of TR-HA-03 |
-| TR-EXE-05 | The executor passes no variables or data to scripts and enforces the rate limit and duplicate suppression of SEC-05. Starts over the limit are dropped and recorded as `skipped` (D21). "Run now" goes through the same executor and limits |
+| TR-EXE-05 | The executor passes no variables or data to scripts and enforces the rate limit and duplicate suppression of SEC-05. Starts over the limit are dropped and recorded as `skipped` ([Settings](../analysis/objects/settings.md)). "Run now" goes through the same executor and limits |
 | TR-EXE-06 | Before executing, the alarm owner is verified to exist and be active (TR-HA-04, SEC-03) |
 
 ## 7. API
@@ -130,7 +130,7 @@ Served by the dashboard add-on on its `ingress_port` and reachable **only throug
 | POST | `/alarms/{id}/occurrences/{occurrence_id}/snoozed` | Report snooze |
 | POST | `/alarms/{id}/occurrences/{occurrence_id}/timed_out` | Report that ringing stopped without dismissal |
 | GET | `/history?alarm_id=&limit=` | Execution history (own alarms; admins all) |
-| GET | `/settings` | Read settings (they are changed in the add-on configuration, D30) |
+| GET | `/settings` | Read settings (they are changed in the add-on configuration, [Settings](../analysis/objects/settings.md)) |
 | GET | `/sync?since=<change_seq>` | Alarms changed since a `change_seq`, deleted ids, current `change_seq`, default snooze |
 | POST | `/clients` | Register or update an app instance, including its current time zone (called on every sync) |
 | GET | `/clients` | The user's own phones with last sync time and away state (admins: all) |
@@ -143,19 +143,19 @@ Served by the dashboard add-on on its `ingress_port` and reachable **only throug
 | TR-API-01 | The API is versioned by the path (`/api/v1`) and by an integer `api_version` in `GET /info`. Additive changes keep the number; breaking changes bump it and are listed in the changelog |
 | TR-API-02 | Writes use optimistic concurrency via `revision` in the request body; a mismatch returns `409` |
 | TR-API-03 | Input validated with strict schemas (e.g. `voluptuous` or `pydantic`); unknown fields rejected (SEC-05) |
-| TR-API-04 | An `occurrence_id` is deterministic: `<alarm_id>_<YYYYMMDDTHHMMSSZ>` (scheduled UTC time, D26), so the app can compute it offline. Test vectors for ids **and** schedule calculation (DST, weekdays, skip) are published in `docs/test-vectors/` |
+| TR-API-04 | An `occurrence_id` is deterministic: `<alarm_id>_<YYYYMMDDTHHMMSSZ>` (scheduled UTC time, [Occurrence](../analysis/objects/occurrence.md)), so the app can compute it offline. Test vectors for ids **and** schedule calculation (DST, weekdays, skip) are published in `docs/test-vectors/` |
 | TR-API-05 | `docs/openapi.yaml` is the contract for this repository, validated in CI |
 | TR-API-06 | `GET /info` returns `min_client_api_version` so a client such as the app can detect an incompatible dashboard and show a clear message |
-| TR-API-07 | Foreign or unknown objects return `404`; admin-only endpoints and admin writes to other users' alarms return `403` (SEC-03, D19) |
-| TR-API-08 | Weekdays are exchanged as `mon`..`sun`, never as numbers (D26) |
-| TR-API-09 | **Identity (D29):** the user is taken from the `X-Remote-User-Id` header that HA ingress adds. Requests are accepted only from the Supervisor ingress proxy address (`172.30.32.2`); any other source, or a request without the header, gets `401`. Admin status comes from TR-HA-04 |
+| TR-API-07 | Foreign or unknown objects return `404`; admin-only endpoints and admin writes to other users' alarms return `403` (SEC-03, [Alarm](../analysis/objects/alarm.md)) |
+| TR-API-08 | Weekdays are exchanged as `mon`..`sun`, never as numbers ([Occurrence](../analysis/objects/occurrence.md)) |
+| TR-API-09 | **Identity ([Dashboard add-on](../analysis/components/dashboard-addon.md)):** the user is taken from the `X-Remote-User-Id` header that HA ingress adds. Requests are accepted only from the Supervisor ingress proxy address (`172.30.32.2`); any other source, or a request without the header, gets `401`. Admin status comes from TR-HA-04 |
 | TR-API-10 | All routes use relative URLs, because the ingress path prefix differs per installation |
 
 ## 8. Frontend
 | ID | Requirement |
 |---|---|
 | TR-UI-01 | The panel is the dashboard add-on's ingress panel (sidebar "Alarms", `mdi:alarm`, visible to non-admins via `panel_admin: false`) |
-| TR-UI-02 | Implemented in **Lit + TypeScript**, bundled with **Vite** (decision D4) |
+| TR-UI-02 | Implemented in **Lit + TypeScript**, bundled with **Vite** ([Dashboard add-on](../analysis/components/dashboard-addon.md)) |
 | TR-UI-03 | The bundle is built in a Node stage of the multi-stage `Dockerfile`, so users need no build tooling |
 | TR-UI-04 | The panel calls the add-on API with relative URLs; the ingress session cookie provides the login |
 | TR-UI-05 | Theme and language follow HA: the panel reads HA's theme CSS variables and language from the parent frame (same origin), with `prefers-color-scheme` as fallback |
@@ -170,7 +170,7 @@ See [security-requirements.md](security-requirements.md) (IDs `SEC-*`). Implemen
 |---|---|
 | TR-EVT-01 | Fire `alarm_actions_alarm_dismissed`, `alarm_actions_alarm_snoozed`, and `alarm_actions_action_executed` on the HA event bus (websocket `fire_event`), with ids, timestamps and (for executions) the `result` only (SEC-06), so users can build e.g. "notify on failure" automations |
 
-There are no HA entities (D31). The phone's next alarm is visible in HA through the Companion App's own *Next alarm* sensor, because the Android app uses `setAlarmClock`.
+There are no HA entities ([Dashboard add-on](../analysis/components/dashboard-addon.md)). The phone's next alarm is visible in HA through the Companion App's own *Next alarm* sensor, because the Android app uses `setAlarmClock`.
 
 ## 11. Quality
 | ID | Requirement |
@@ -202,5 +202,5 @@ There are no HA entities (D31). The phone's next alarm is visible in HA through 
 | TR-APP-08 | The app and the dashboard add-on share the contract in `docs/openapi.yaml`; the app checks `min_client_api_version` from `GET /info` on every sync |
 | TR-APP-09 | The dashboard add-on slug is deterministic for this repository URL; the Install app tab also shows it as a QR code so a fork or a renamed repository still works |
 
-## Decisions on earlier open questions
-Frontend Lit + TypeScript + Vite (D4), polling sync (D6), sync cursor `change_seq` (D25), contract formats (D26), add-on repository with two add-ons (D28), ingress identity (D29), settings in add-on configuration (D30), no HA entities (D31), app add-on (D32). See [../analysis/decisions.md](../analysis/decisions.md).
+## Decisions
+Decisions are recorded in the file of the object or component they concern: frontend Lit + TypeScript + Vite ([Dashboard add-on](../analysis/components/dashboard-addon.md)), polling sync ([Client](../analysis/objects/client.md)), sync cursor `change_seq` ([Client](../analysis/objects/client.md)), contract formats ([Occurrence](../analysis/objects/occurrence.md)), add-on repository with two add-ons ([Dashboard add-on](../analysis/components/dashboard-addon.md)), ingress identity ([Dashboard add-on](../analysis/components/dashboard-addon.md)), settings in add-on configuration ([Settings](../analysis/objects/settings.md)), no HA entities ([Dashboard add-on](../analysis/components/dashboard-addon.md)), app add-on ([App add-on](../analysis/components/app-addon.md)).
