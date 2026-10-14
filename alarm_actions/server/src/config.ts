@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
@@ -6,6 +7,7 @@ import { DEFAULT_SETTINGS, type Settings } from '@alarm-actions/shared';
 
 /** Supervisor ingress proxy address; the only accepted source on the ingress listener. */
 export const INGRESS_PROXY_IP = '172.30.32.2';
+export const APP_ADDON_PORT = 8000;
 
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal' | 'silent';
 
@@ -23,6 +25,8 @@ export interface AppConfig {
   webDistDir: string | null;
   logLevel: LogLevel;
   settings: Settings;
+  /** Base URL of the app add-on on the internal network (TR-APP-03); null disables the probe. */
+  appUrl: string | null;
 }
 
 const optionsSchema = z.object({
@@ -104,5 +108,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webDistDir: env.WEB_DIST_DIR ? path.resolve(env.WEB_DIST_DIR) : defaultWebDistDir(),
     logLevel: (env.LOG_LEVEL as LogLevel | undefined) || toLogLevel(settings.log_level),
     settings,
+    appUrl: env.APP_ADDON_URL || (env.SUPERVISOR_TOKEN ? defaultAppUrl() : null),
   };
+}
+
+/**
+ * The app add-on's hostname follows from ours: `<repo-hash>-alarm-actions` →
+ * `<repo-hash>-alarm-actions-app`. Its port is fixed in phase 6.
+ */
+function defaultAppUrl(): string {
+  return `http://${os.hostname()}-app:${APP_ADDON_PORT}`;
 }

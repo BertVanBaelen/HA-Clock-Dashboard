@@ -63,6 +63,20 @@ paths:
                     items: { $ref: '#/components/schemas/ActionDefinition' }
         '503': { $ref: '#/components/responses/Error' }
         default: { $ref: '#/components/responses/Error' }
+  /app/info:
+    get:
+      tags: [general]
+      operationId: getAppInfo
+      description: >-
+        Whether the app add-on is running and which app version it offers (TR-APP-03). The panel
+        shows the "Install app" tab only when it is available. Full details follow in phase 6.
+      responses:
+        '200':
+          description: App availability.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AppInfo' }
+        default: { $ref: '#/components/responses/Error' }
   /settings:
     get:
       tags: [general]
@@ -284,12 +298,21 @@ components:
         away: { type: boolean }
     ActionDefinition:
       type: object
-      required: [entity_id, name, icon, description]
+      required: [entity_id, name, icon, icon_path, description]
       properties:
         entity_id: { type: string, examples: [script.coffee] }
         name: { type: string }
         icon: { type: [string, 'null'] }
+        icon_path:
+          type: [string, 'null']
+          description: SVG path data (24×24 viewBox) of the MDI icon, resolved by the add-on; null when the icon is unknown.
         description: { type: [string, 'null'] }
+    AppInfo:
+      type: object
+      required: [available, version]
+      properties:
+        available: { type: boolean }
+        version: { type: [string, 'null'] }
     Settings:
       type: object
       required:

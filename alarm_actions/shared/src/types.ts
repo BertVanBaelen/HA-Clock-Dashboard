@@ -96,6 +96,8 @@ export interface ActionDefinition {
   entity_id: string;
   name: string;
   icon: string | null;
+  /** SVG path (24×24) of the icon, resolved by the server; null when unknown. */
+  icon_path: string | null;
   description: string | null;
 }
 
@@ -112,6 +114,12 @@ export interface Info {
   time_zone: string | null;
   ha_connected: boolean;
   app_available: boolean;
+}
+
+/** `GET /app/info`: the APK offered by the app add-on (TR-APP-03); details follow in phase 6. */
+export interface AppInfo {
+  available: boolean;
+  version: string | null;
 }
 
 export interface Me {

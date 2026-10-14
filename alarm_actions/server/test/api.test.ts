@@ -1,5 +1,11 @@
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
+import { mdiRadiator, mdiScriptText } from '@mdi/js';
 import type { Alarm, AlarmSaveResponse } from '@alarm-actions/shared';
+import { AppProbe } from '../src/appProbe.js';
+import { mdiPath } from '../src/ha/scripts.js';
+import { createLogger } from '../src/logger.js';
 import { API_REQUESTS_PER_MINUTE } from '../src/security.js';
 import { FakeHaCore } from './helpers/fakeHa.js';
 import { startHarness, waitFor, type Harness } from './helpers/harness.js';
@@ -482,11 +488,18 @@ describe('actions (labeled scripts)', () => {
     const res = await harness.request('user-a', 'GET', '/api/v1/actions');
     expect(res.json()).toEqual({
       actions: [
-        { entity_id: 'script.coffee', name: 'Coffee', icon: null, description: null },
+        {
+          entity_id: 'script.coffee',
+          name: 'Coffee',
+          icon: null,
+          icon_path: mdiScriptText,
+          description: null,
+        },
         {
           entity_id: 'script.heat_bathroom',
           name: 'Heat bathroom',
           icon: 'mdi:radiator',
+          icon_path: mdiRadiator,
           description: null,
         },
       ],
@@ -564,5 +577,65 @@ describe('info and settings', () => {
       snooze_minutes: 7,
       action_label: 'alarm_action',
     });
+  });
+});
+
+describe('script icons (FR-UI-03)', () => {
+  it('resolves mdi icons to SVG paths', () => {
+    expect(mdiPath('mdi:radiator')).toBe(mdiRadiator);
+    expect(mdiPath('hass:radiator')).toBe(mdiRadiator);
+    expect(mdiPath(null)).toBe(mdiScriptText);
+    expect(mdiPath('mdi:does-not-exist')).toBeNull();
+    expect(mdiPath('custom:thing')).toBeNull();
+  });
+});
+
+describe('app add-on probe (TR-APP-03)', () => {
+  it('reports the app add-on as available while it answers, cached for 30 s', async () => {
+    let hits = 0;
+    let up = true;
+    const server = http.createServer((req, res) => {
+      hits++;
+      if (!up || req.url !== '/info') {
+        res.statusCode = 503;
+        res.end();
+        return;
+      }
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ version: '1.2.0' }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      let t = NOW;
+      const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+      const probe = new AppProbe(url, createLogger('silent'), () => t);
+      expect(await probe.info()).toEqual({ available: true, version: '1.2.0' });
+      up = false;
+      expect(await probe.info()).toEqual({ available: true, version: '1.2.0' });
+      expect(hits).toBe(1);
+      t += 31_000;
+      expect(await probe.info()).toEqual({ available: false, version: null });
+    } finally {
+      server.close();
+    }
+  });
+
+  it('reports unavailable without a URL or when nothing listens', async () => {
+    expect(await new AppProbe(null, createLogger('silent')).info()).toEqual({
+      available: false,
+      version: null,
+    });
+    const probe = new AppProbe('http://127.0.0.1:1', createLogger('silent'));
+    expect(await probe.info()).toEqual({ available: false, version: null });
+  });
+
+  it('serves /app/info and info.app_available to logged-in users only', async () => {
+    harness = await startHarness({ now: () => NOW });
+    harness.services.appProbe.info = async () => ({ available: true, version: '1.0.0' });
+    const res = await harness.request('user-a', 'GET', '/api/v1/app/info');
+    expect(res.json()).toEqual({ available: true, version: '1.0.0' });
+    const info = await harness.request('user-a', 'GET', '/api/v1/info');
+    expect(info.json()).toMatchObject({ app_available: true });
+    expect((await harness.request(null, 'GET', '/api/v1/app/info')).statusCode).toBe(401);
   });
 });

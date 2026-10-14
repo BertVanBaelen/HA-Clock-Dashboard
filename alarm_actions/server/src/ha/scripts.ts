@@ -1,6 +1,22 @@
 import type { FastifyBaseLogger } from 'fastify';
+import * as mdi from '@mdi/js';
 import type { ActionDefinition } from '@alarm-actions/shared';
 import type { HaClient } from './client.js';
+
+const MDI = mdi as unknown as Record<string, string | undefined>;
+/** HA's default icon for scripts. */
+const DEFAULT_SCRIPT_ICON = 'mdi:script-text';
+
+/**
+ * SVG path of an `mdi:` icon (FR-UI-03). The panel runs in an iframe without HA's icon set and
+ * may not load external resources, so the server resolves the path. Null for other icon sets.
+ */
+export function mdiPath(icon: string | null): string | null {
+  const match = /^(?:mdi|hass):([a-z0-9-]+)$/.exec(icon ?? DEFAULT_SCRIPT_ICON);
+  if (!match) return null;
+  const name = 'mdi' + match[1]!.replace(/(^|-)([a-z0-9])/g, (_m, _d, c: string) => c.toUpperCase());
+  return MDI[name] ?? null;
+}
 
 interface LabelEntry {
   label_id: string;
@@ -126,9 +142,11 @@ export class ScriptRegistry {
           asString(entity.original_name) ??
           entity.entity_id,
         icon: asString(entity.icon) ?? asString(attrs.icon),
+        icon_path: null,
         description: asString(attrs.description),
       });
     }
+    for (const script of scripts.values()) script.icon_path = mdiPath(script.icon);
     const before = this.scripts ? [...this.scripts.keys()].sort().join(',') : null;
     this.scripts = scripts;
     const after = [...scripts.keys()].sort().join(',');

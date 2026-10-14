@@ -4,7 +4,7 @@ import Fastify, { LogController, type FastifyError, type FastifyInstance } from 
 import fastifyStatic from '@fastify/static';
 import type { ApiErrorBody } from '@alarm-actions/shared';
 import { HttpError } from './errors.js';
-import { apiRoutes, type ApiOptions } from './routes/api.js';
+import { apiRoutes } from './routes/api.js';
 import { ingressUserId } from './security.js';
 import type { Services } from './services.js';
 
@@ -18,7 +18,7 @@ declare module 'fastify' {
   }
 }
 
-export async function buildApp(svc: Services, options: ApiOptions = {}): Promise<FastifyInstance> {
+export async function buildApp(svc: Services): Promise<FastifyInstance> {
   const app = Fastify({
     loggerInstance: svc.log,
     // Only the Supervisor ingress proxy talks to this listener; never trust forwarded headers.
@@ -56,7 +56,7 @@ export async function buildApp(svc: Services, options: ApiOptions = {}): Promise
     ingressUserId(req, svc.config.trustedProxy);
   });
 
-  await app.register(apiRoutes, { prefix: '/api/v1', ...options });
+  await app.register(apiRoutes, { prefix: '/api/v1' });
 
   const webDist = svc.config.webDistDir;
   if (webDist && fs.existsSync(path.join(webDist, 'index.html'))) {

@@ -44,6 +44,7 @@ export function testConfig(dataDir: string, haWsUrl: string, settings: Partial<S
     webDistDir: null,
     logLevel: 'silent',
     settings: { ...DEFAULT_SETTINGS, ...settings },
+    appUrl: null,
   };
   return config;
 }

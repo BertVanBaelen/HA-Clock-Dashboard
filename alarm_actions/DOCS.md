@@ -19,6 +19,19 @@ Only scripts with the label `alarm_action` can be used as actions. In Home Assis
 and add the label `alarm_action` (create it the first time). Scripts are started with
 `script.turn_on` and receive no data, so they must work without variables.
 
+## Using the panel
+
+- **New alarm**: set the time, an optional label and the days. Select no days for a one-time
+  alarm. Leave snooze empty to use the default.
+- **Actions**: pick a script, choose *before*, *at* or *after* the alarm and the number of minutes.
+  Each action can be switched off on its own; ▶ runs a saved action right away to test it.
+- If a *before* action is already past for the next alarm (for example 20 minutes before an alarm
+  in 5 minutes), the editor warns you; it runs from the following alarm on.
+- Actions whose script was deleted or lost its label are marked **Unavailable** and are skipped.
+- **Skip next** (⏭) skips only the next ring of a repeating alarm; tap again to undo.
+- If an alarm was changed elsewhere (another phone or tab), saving asks you to reload it first.
+- The panel follows your Home Assistant theme (light/dark) and works in the Companion App.
+
 ## Users and permissions
 
 - Every Home Assistant user sees only their own alarms.

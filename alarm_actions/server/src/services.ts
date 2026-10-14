@@ -9,6 +9,7 @@ import { Executor } from './executor.js';
 import { HistoryStore } from './history.js';
 import { Scheduler } from './scheduler.js';
 import { AlarmStore } from './store.js';
+import { AppProbe } from './appProbe.js';
 
 /** Everything the routes and background jobs share. Tests build it with fakes. */
 export interface Services {
@@ -23,6 +24,7 @@ export interface Services {
   history: HistoryStore;
   executor: Executor;
   scheduler: Scheduler;
+  appProbe: AppProbe;
   /** Wall clock in ms; injectable for tests. */
   now: () => number;
 }
@@ -66,7 +68,22 @@ export function createServices(
     log,
     now,
   });
-  return { config, db, log, ha, directory, users, scripts, store, history, executor, scheduler, now };
+  const appProbe = new AppProbe(config.appUrl, log, now);
+  return {
+    config,
+    db,
+    log,
+    ha,
+    directory,
+    users,
+    scripts,
+    store,
+    history,
+    executor,
+    scheduler,
+    appProbe,
+    now,
+  };
 }
 
 /** Starts the background parts (HA connection, periodic refreshes). */
