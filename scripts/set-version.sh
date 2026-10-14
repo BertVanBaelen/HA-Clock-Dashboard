@@ -11,7 +11,7 @@ fi
 root="$(cd "$(dirname "$0")/.." && pwd)"
 addon="$root/alarm_actions"
 
-sed -i -E "s/^version:.*/version: \"$version\"/" "$addon/config.yaml"
+sed -i -E "s/^version:.*/version: \"$version\"/" "$addon/config.yaml" "$root/alarm_actions_app/config.yaml"
 sed -i -E "s/APP_VERSION = '[^']+'/APP_VERSION = '$version'/" "$addon/server/src/version.ts"
 for pkg in package.json shared/package.json server/package.json web/package.json; do
   sed -i -E "s/^  \"version\": \"[^\"]+\"/  \"version\": \"$version\"/" "$addon/$pkg"

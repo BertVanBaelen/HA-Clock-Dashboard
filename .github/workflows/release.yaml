@@ -1,6 +1,10 @@
 # Releases a new add-on version (TR-PLT-10):
-#   1. tests, 2. builds and pushes the images for every architecture to GHCR,
-#   3. only then commits the version bump to main, tags v<version> and creates the GitHub release.
+#   1. tests, 2. builds and signs the Android APK, 3. builds and pushes the images of both add-ons
+#   (the app add-on with the APK inside) for every architecture to GHCR,
+#   4. only then commits the version bump to main, tags v<version> and creates the GitHub release
+#   with the APK and its SHA-256 attached.
+# Needs the secrets ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and
+# ANDROID_KEY_PASSWORD (the release fails without them: an unsigned APK cannot be installed).
 # The Add-on Store offers an update only after step 3, so the images always exist when it does.
 name: Release
 
@@ -17,6 +21,7 @@ concurrency:
 
 env:
   IMAGE: ghcr.io/bertvanbaelen/alarm-actions
+  APP_IMAGE: ghcr.io/bertvanbaelen/alarm-actions-app
   VERSION: ${{ inputs.version }}
 
 jobs:
@@ -43,6 +48,48 @@ jobs:
           npm run typecheck
           npm run lint
           npm test
+
+  apk:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/set-version.sh "$VERSION"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-37.0 build-tools;36.0.0 platform-tools"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build and sign the APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ]; then
+            echo "::error::Signing secrets are missing (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS)"; exit 1
+          fi
+          export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$ANDROID_KEYSTORE_FILE"
+          chmod +x gradlew
+          ./gradlew --no-daemon testReleaseUnitTest assembleRelease -PappVersion="$VERSION"
+          rm -f "$ANDROID_KEYSTORE_FILE"
+          apk=app/build/outputs/apk/release/app-release.apk
+          buildtools="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          "$buildtools/apksigner" verify --print-certs "$apk"
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          cp "$apk" "$GITHUB_WORKSPACE/dist/alarm-actions-$VERSION.apk"
+          (cd "$GITHUB_WORKSPACE/dist" && sha256sum "alarm-actions-$VERSION.apk" > "alarm-actions-$VERSION.apk.sha256")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: dist/
+          retention-days: 7
 
   build:
     needs: check
@@ -88,13 +135,66 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
 
+  build-app:
+    needs: apk
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+            platform: linux/amd64
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/set-version.sh "$VERSION"
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
+          path: dist
+      - run: cp "dist/alarm-actions-$VERSION.apk" alarm_actions_app/alarm_actions.apk
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: alarm_actions_app
+          platforms: ${{ matrix.platform }}
+          push: true
+          provenance: false
+          build-args: |
+            APP_VERSION=${{ env.VERSION }}
+          tags: |
+            ${{ env.APP_IMAGE }}-${{ matrix.arch }}:${{ env.VERSION }}
+            ${{ env.APP_IMAGE }}-${{ matrix.arch }}:latest
+          labels: |
+            io.hass.name=Alarm Actions App
+            io.hass.description=Android app for Alarm Actions
+            io.hass.type=addon
+            io.hass.arch=${{ matrix.arch }}
+            io.hass.version=${{ env.VERSION }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ env.VERSION }}
+
   release:
-    needs: build
+    needs: [build, build-app]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
+          path: dist
       - name: Bump version, tag and release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -102,7 +202,7 @@ jobs:
           bash scripts/set-version.sh "$VERSION"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add alarm_actions
+          git add alarm_actions alarm_actions_app
           if git diff --cached --quiet; then
             echo "Version already $VERSION in the repository"
           else
@@ -111,4 +211,5 @@ jobs:
           fi
           git tag "v$VERSION"
           git push origin "v$VERSION"
-          gh release create "v$VERSION" --title "Alarm Actions $VERSION" --generate-notes
+          gh release create "v$VERSION" --title "Alarm Actions $VERSION" --generate-notes \
+            "dist/alarm-actions-$VERSION.apk" "dist/alarm-actions-$VERSION.apk.sha256"

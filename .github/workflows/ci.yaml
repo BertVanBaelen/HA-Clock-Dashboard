@@ -30,12 +30,30 @@ jobs:
         run: bash scripts/check-versions.sh
 
   addon-lint:
+    strategy:
+      matrix:
+        addon: [alarm_actions, alarm_actions_app]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: frenck/action-addon-linter@v2
         with:
-          path: ./alarm_actions
+          path: ./${{ matrix.addon }}
+
+  app-addon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check alarm_actions_app/server.mjs
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image without APK
+        uses: docker/build-push-action@v6
+        with:
+          context: alarm_actions_app
+          push: false
 
   openapi:
     runs-on: ubuntu-latest
