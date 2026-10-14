@@ -63,14 +63,16 @@ If HA is reachable from the internet: use HTTPS through a reverse proxy or Cloud
 
 ## Repository layout
 ```
-repository.yaml                    add-on repository metadata (to be created)
-alarm_actions/                     dashboard add-on: config.yaml, Dockerfile, service/, frontend/
+repository.yaml                    add-on repository metadata
+alarm_actions/                     dashboard add-on: config.yaml, Dockerfile, Node.js workspaces shared/, server/, web/ (React)
 alarm_actions_app/                 app add-on: config.yaml, Dockerfile, APK server (APK added by CI, not in git)
 android/                           Android app source (Kotlin)
 requirements/                      functional, technical, app, security requirements
 analysis/                          domain overview, one file per object and component
 features/                          phased feature plan (dashboard + app tracks)
 docs/openapi.yaml                  API contract (to be created)
+scripts/                           version check and bump for releases
+.github/workflows/                 CI, release, tag check
 LICENSE
 ```
 

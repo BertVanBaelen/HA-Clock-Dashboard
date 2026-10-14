@@ -15,8 +15,8 @@
 | 2.7 | Skip / unskip endpoints (state only); rejected for one-time alarms | FR-ALM-05 | `skip_next` toggles; one-time alarm returns 422 |
 | 2.8 | Derived `next_occurrence` calculation | FR-ALM-07, TR-SCH-01 | Correct incl. DST and weekdays |
 | 2.9 | Input limits and error format | SEC-05 | 400/403/404/409 responses match spec |
-| 2.10 | `security.py`: one central owner-or-admin check used by every route, deny by default | SEC-03, TR-API-07 | No route has its own ad-hoc check |
-| 2.11 | `security.py`: identity from `X-Remote-User-Id`, accepted only from the Supervisor ingress proxy; admin flag from `config/auth/list`. Route-enumeration test fails on a route without the identity check | SEC-01, 02, SEC-11, TR-API-09, TR-HA-04 | Requests without ingress identity or from another source get 401 on every route |
+| 2.10 | `server/src/security.ts`: one central owner-or-admin check used by every route, deny by default | SEC-03, TR-API-07 | No route has its own ad-hoc check |
+| 2.11 | `server/src/security.ts`: identity from `X-Remote-User-Id`, accepted only from the Supervisor ingress proxy; admin flag from `config/auth/list`. Route-enumeration test fails on a route without the identity check | SEC-01, 02, SEC-11, TR-API-09, TR-HA-04 | Requests without ingress identity or from another source get 401 on every route |
 | 2.12 | Access matrix tests (owner, other user, admin, no identity) for every route, following analysis section 13 | SEC-11 | All cells of the matrix covered |
 | 2.13 | Strict input validation and size limits | SEC-05 | Negative tests pass |
 | 2.14 | Per-user caps (50 alarms, 20 actions) and API rate limit | SEC-05 | `422` / `429` returned |

@@ -16,7 +16,7 @@ Architecture ([Dashboard add-on](../analysis/components/dashboard-addon.md)): th
                │                                    │
                ▼ ingress listener                   ▼ external API listener (optional, port 8100)
    ┌──────── alarm_actions add-on (container) ────────┐     ┌── alarm_actions_app add-on ──┐
-   │ aiohttp API + panel, scheduler, executor, SQLite │────►│ /info, /apk (internal only)  │
+   │ Fastify API + panel, scheduler, executor, SQLite │────►│ /info, /apk (internal only)  │
    └──────────────────────┬───────────────────────────┘     └──────────────────────────────┘
                           │ ws://supervisor/core/websocket (SUPERVISOR_TOKEN)
                           │ ws://homeassistant:8123/api/websocket (user token check only)
@@ -30,8 +30,8 @@ Architecture ([Dashboard add-on](../analysis/components/dashboard-addon.md)): th
 | TR-PLT-01 | The repository is a HA add-on repository (`repository.yaml` at the root) containing two add-ons: `alarm_actions` and `alarm_actions_app` ([Dashboard add-on](../analysis/components/dashboard-addon.md)) |
 | TR-PLT-02 | Both add-ons share one semantic version, set in each `config.yaml`, released together with a GitHub Release and a `CHANGELOG.md` per add-on |
 | TR-PLT-03 | Requires a Supervisor installation (**HA OS or Supervised**). The `homeassistant` key in `config.yaml` sets the minimum Core version (at least 2024.4, for labels). Tested against the current stable and previous Core release |
-| TR-PLT-04 | Service code in Python 3.12+, fully async (`aiohttp`), on the official HA base image (`ghcr.io/home-assistant/{arch}-base-python`) |
-| TR-PLT-05 | Must pass the add-on linter (`frenck/action-addon-linter`) and build with `home-assistant/builder` |
+| TR-PLT-04 | Service code in **Node.js 22 + TypeScript** (Fastify, `better-sqlite3`, `ws`), on the official `node:22-bookworm-slim` image; the Node process is the container entry point (no s6) ([Dashboard add-on](../analysis/components/dashboard-addon.md)) |
+| TR-PLT-05 | Must pass the add-on linter (`frenck/action-addon-linter`); images are built with `docker/build-push-action` per architecture on native runners |
 | TR-PLT-06 | Architectures `aarch64` and `amd64`. Images are prebuilt by CI, pushed to GHCR and referenced with `image:` in `config.yaml`, so users never build locally |
 | TR-PLT-07 | Dashboard `config.yaml` sets at least: `ingress: true`, `ingress_port`, `panel_icon: mdi:alarm`, `panel_title: Alarms`, **`panel_admin: false`** (so non-admin users see the panel), `homeassistant_api: true`, `boot: auto`, `watchdog`, `init: false`, `options`/`schema` (including the optional `external_api_url`, TR-API-11), `ports: {8100/tcp: null}` (disabled by default, TR-API-11), backup settings (TR-DAT-07) |
 | TR-PLT-08 | Each add-on folder contains `icon.png`, `logo.png`, `DOCS.md`, `CHANGELOG.md` and `translations/en.yaml` (option labels) |
@@ -41,34 +41,36 @@ Architecture ([Dashboard add-on](../analysis/components/dashboard-addon.md)): th
 ## 2. Repository structure
 ```
 repository.yaml                 add-on repository metadata (name, url, maintainer)
-alarm_actions/                  dashboard add-on
-  config.yaml  build.yaml  Dockerfile  DOCS.md  CHANGELOG.md  icon.png  logo.png
+alarm_actions/                  dashboard add-on (npm workspaces)
+  config.yaml  Dockerfile  DOCS.md  CHANGELOG.md  icon.png  logo.png
   translations/en.yaml
-  rootfs/                       s6 service definition
-  service/
-    main.py                     startup, aiohttp app, ingress server
-    ha_client.py                websocket connection to HA Core (TR-HA)
-    models.py                   dataclasses for domain objects
-    storage.py                  SQLite persistence and migrations
-    scheduler.py                next-occurrence calc + timers
-    executor.py                 runs scripts, records results
-    security.py                 identity (ingress or bearer token), owner/admin checks, validation
-    external_api.py             optional external API listener (TR-API-11..14)
-    token_auth.py               HA access token validation and cache (TR-API-12)
-    ratelimit.py                script-start and API rate limiting
-    api.py                      HTTP routes
-    sync.py                     sync and client registration for the app
-    app_proxy.py                detects the app add-on, proxies APK info/download
-  frontend/                     Lit + TypeScript source; bundle built in the image build
+  docker/alarm-actions-backup   backup_pre command (writes the database snapshot)
+  shared/src/                   types, zod schemas, schedule calculation (used by server and web)
+  server/src/
+    index.ts                    startup, signal handling
+    app.ts                      Fastify app, ingress guard, static panel
+    config.ts                   environment and add-on options
+    ha/client.ts                websocket connection to HA Core (TR-HA)
+    ha/directory.ts             time zone, users and alarm_action scripts from Core
+    db.ts  snapshot.ts          SQLite persistence, migrations, backup snapshot
+    store/                      alarms, occurrences and execution records
+    scheduler.ts                next-occurrence calc + timers
+    executor.ts                 runs scripts, records results
+    security.ts                 identity (ingress or bearer token), owner/admin checks
+    ratelimit.ts                script-start and API rate limiting
+    routes/                     HTTP routes
+    appProxy.ts                 detects the app add-on, proxies APK info/download
+  server/test/                  vitest tests with a fake HA websocket server
+  web/                          React + TypeScript panel, built with Vite in the image build
 alarm_actions_app/              Android app add-on
-  config.yaml  build.yaml  Dockerfile  DOCS.md  CHANGELOG.md  icon.png  logo.png
-  server.py                     /info and /apk on the internal network only
+  config.yaml  Dockerfile  DOCS.md  CHANGELOG.md  icon.png  logo.png
+  server                        /info and /apk on the internal network only
   (alarm_actions.apk is copied in by release CI, never committed)
 android/                        Kotlin app source (see app-requirements.md)
 docs/openapi.yaml               API contract; docs/test-vectors/ for ids and schedules
-tests/
+scripts/                        check-versions.sh, set-version.sh
 LICENSE                         MIT
-.github/workflows/              lint, tests, add-on linter, image build, APK build, release
+.github/workflows/              ci, release, tag check (APK build later)
 ```
 
 ## 3. Persistence
@@ -94,7 +96,7 @@ LICENSE                         MIT
 ## 5. Scheduling
 | ID | Requirement |
 |---|---|
-| TR-SCH-01 | Next occurrence is computed in the HA time zone using `zoneinfo` and handles DST changes (nonexistent and ambiguous local times) |
+| TR-SCH-01 | Next occurrence is computed in the HA time zone using the IANA time zone data of `Intl` (Node.js with full ICU) and handles DST changes (nonexistent and ambiguous local times) |
 | TR-SCH-02 | For every enabled alarm, the scheduler computes the next *occurrence* and, for each action, a *planned run* (occurrence time + offset). Planned runs are tracked per occurrence, because an alarm can have several active occurrences at once |
 | TR-SCH-03 | One asyncio timer for the earliest planned run, rescheduled after each run. The timer is re-checked at least every 60 s against wall-clock UTC, so clock corrections cannot delay runs |
 | TR-SCH-04 | Scheduler recalculates on: alarm create/update/delete, skip, add-on start (also after an options change, which restarts the add-on), Core reconnect, time zone change, away-state change |
@@ -163,7 +165,7 @@ Served by the dashboard add-on on two listeners with the same routes and the sam
 | ID | Requirement |
 |---|---|
 | TR-UI-01 | The panel is the dashboard add-on's ingress panel (sidebar "Alarms", `mdi:alarm`, visible to non-admins via `panel_admin: false`) |
-| TR-UI-02 | Implemented in **Lit + TypeScript**, bundled with **Vite** ([Dashboard add-on](../analysis/components/dashboard-addon.md)) |
+| TR-UI-02 | Implemented in **React 19 + TypeScript**, bundled with **Vite** ([Dashboard add-on](../analysis/components/dashboard-addon.md)) |
 | TR-UI-03 | The bundle is built in a Node stage of the multi-stage `Dockerfile`, so users need no build tooling |
 | TR-UI-04 | The panel calls the add-on API with relative URLs; the ingress session cookie provides the login |
 | TR-UI-05 | Theme and language follow HA: the panel reads HA's theme CSS variables and language from the parent frame (same origin), with `prefers-color-scheme` as fallback |
@@ -171,7 +173,7 @@ Served by the dashboard add-on on two listeners with the same routes and the sam
 | TR-UI-07 | No `innerHTML`/`unsafeHTML` with user data, no third-party requests (SEC-07) |
 
 ## 9. Security
-See [security-requirements.md](security-requirements.md) (IDs `SEC-*`). Implementation entry points: `security.py` (identity, owner check, validation), `token_auth.py`, `external_api.py` and `ratelimit.py`.
+See [security-requirements.md](security-requirements.md) (IDs `SEC-*`). Implementation entry points: `server/src/security.ts` (identity, owner check), the zod schemas in `shared/src/schemas.ts` (validation) and `server/src/ratelimit.ts`; the external API and token check follow in phase 6.
 
 ## 10. Events
 | ID | Requirement |
@@ -183,9 +185,9 @@ There are no HA entities ([Dashboard add-on](../analysis/components/dashboard-ad
 ## 11. Quality
 | ID | Requirement |
 |---|---|
-| TR-QLT-01 | Unit tests with `pytest` and the `aiohttp` test client, against a fake HA websocket server |
+| TR-QLT-01 | Unit tests with `vitest` and Fastify `inject`, against a fake HA websocket server |
 | TR-QLT-02 | The scheduler is tested for DST transitions, midnight rollover, restart recovery, Core disconnects, and skip behavior |
-| TR-QLT-03 | Linting with `ruff`; type hints with `mypy` where practical; `eslint` and `tsc` for the frontend |
+| TR-QLT-03 | Linting with `eslint` (typescript-eslint) and strict `tsc` type checks for server, shared code and panel |
 | TR-QLT-04 | CI runs the add-on linter, lint, tests and a test image build on each PR |
 | TR-QLT-05 | Changelog maintained per release and per add-on |
 | TR-QLT-06 | Authorisation and identity tests (SEC-11) run in CI on both listeners, including requests from a non-ingress source address, forged `X-Remote-User-*` headers on the external listener, and missing, invalid, expired and inactive-user tokens |
@@ -211,4 +213,4 @@ There are no HA entities ([Dashboard add-on](../analysis/components/dashboard-ad
 | TR-APP-09 | The Install app tab shows the setup QR code of TR-API-14 |
 
 ## Decisions
-Decisions are recorded in the file of the object or component they concern: frontend Lit + TypeScript + Vite ([Dashboard add-on](../analysis/components/dashboard-addon.md)), polling sync ([Client](../analysis/objects/client.md)), sync cursor `change_seq` ([Client](../analysis/objects/client.md)), contract formats ([Occurrence](../analysis/objects/occurrence.md)), add-on repository with two add-ons ([Dashboard add-on](../analysis/components/dashboard-addon.md)), ingress identity for the panel and HA-token identity for the external API ([Dashboard add-on](../analysis/components/dashboard-addon.md)), settings in add-on configuration ([Settings](../analysis/objects/settings.md)), no HA entities ([Dashboard add-on](../analysis/components/dashboard-addon.md)), app add-on ([App add-on](../analysis/components/app-addon.md)).
+Decisions are recorded in the file of the object or component they concern: frontend React + TypeScript + Vite, backend Node.js + TypeScript ([Dashboard add-on](../analysis/components/dashboard-addon.md)), polling sync ([Client](../analysis/objects/client.md)), sync cursor `change_seq` ([Client](../analysis/objects/client.md)), contract formats ([Occurrence](../analysis/objects/occurrence.md)), add-on repository with two add-ons ([Dashboard add-on](../analysis/components/dashboard-addon.md)), ingress identity for the panel and HA-token identity for the external API ([Dashboard add-on](../analysis/components/dashboard-addon.md)), settings in add-on configuration ([Settings](../analysis/objects/settings.md)), no HA entities ([Dashboard add-on](../analysis/components/dashboard-addon.md)), app add-on ([App add-on](../analysis/components/app-addon.md)).

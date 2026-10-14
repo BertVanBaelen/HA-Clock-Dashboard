@@ -1,0 +1,30 @@
+configuration:
+  snooze_minutes:
+    name: Default snooze (minutes)
+    description: Snooze duration for alarms that have no own snooze duration.
+  dismiss_timeout_minutes:
+    name: Dismiss timeout (minutes)
+    description: After this time from the alarm time, "after dismissal" actions expire.
+  grace_period_minutes:
+    name: Grace period (minutes)
+    description: Actions that were due while the add-on or Home Assistant was down still run if they are at most this late; older ones are recorded as missed.
+  history_days:
+    name: History days
+    description: Execution history older than this is removed.
+  history_max:
+    name: History entries per user
+    description: Maximum number of execution history entries kept per user.
+  max_script_starts_per_minute:
+    name: Script starts per minute
+    description: Limit across all users. Starts beyond it are dropped and recorded as skipped.
+  min_script_interval_seconds:
+    name: Minimum interval per script (seconds)
+    description: A script started again within this time is dropped and recorded as a duplicate start.
+  log_level:
+    name: Log level
+    description: Verbosity of the add-on log.
+  external_api_url:
+    name: External API URL
+    description: Public HTTPS URL for the Android app API, for example https://api.example.com/clock. Leave empty to keep the external API off.
+network:
+  8100/tcp: External API for the Android app (only used when the external API URL is set).

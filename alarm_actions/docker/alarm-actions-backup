@@ -1,0 +1,6 @@
+#!/bin/sh
+# Called by the Supervisor before a (hot) backup (`backup_pre` in config.yaml): writes a consistent
+# SQLite snapshot to /data/alarm_actions.snapshot.db. The live database files are excluded from
+# the backup; after a restore the add-on starts from the snapshot.
+set -e
+exec node /app/server/dist/backup-cli.js

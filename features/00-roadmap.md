@@ -5,13 +5,15 @@ Scope: this repository (`HA-Clock-Dashboard`) is a Home Assistant **add-on repos
 ## Dashboard track (`alarm_actions/`)
 | Phase | Name | Outcome | Status |
 |---|---|---|---|
-| 1 | Foundation | Add-on repository installs from the Add-on Store, connects to HA Core, CI green | ☐ |
+| 1 | Foundation | Add-on repository installs from the Add-on Store, connects to HA Core, CI green | ◐ code written; needs CI run and HA OS test |
 | 2 | Data model and API | Alarms managed through an ingress API that is owner-only | ☐ |
 | 3 | Scheduling and execution | Actions run at the right times in HA | ☐ |
 | 4 | Dashboard panel | Ingress panel "Alarms" with full UI for alarms and actions | ☐ |
 | 5 | Dismiss and history | After-dismissal flow, history view, events | ☐ |
 | 6 | App add-on and sync API | App add-on with APK, Install tab, external API for the app (e.g. through a Cloudflare tunnel), sync endpoint | ☐ |
 | 7 | Hardening and release | Final access check, end-to-end test on HA OS with the app, v1.0.0 | ☐ |
+
+Status: ☐ open, ◐ code written but exit criteria not yet verified, ☑ done.
 
 ## Android app track (`android/`)
 | Phase | Name | Outcome | Status |
