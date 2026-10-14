@@ -1,6 +1,6 @@
 # Android App Requirements
 
-The Android app lives in `android/` in this repository and is distributed as an APK bundled in the HACS release (decisions D15, D17). The server side (sync, download) is specified in the functional and technical requirements. This document covers the app itself.
+The Android app lives in `android/` in this repository. Its APK is shipped inside the second add-on, "Alarm Actions App" (`alarm_actions_app`); when that add-on runs, the dashboard shows an "Install app" tab with the download (D28, D32). The server side (sync, download) is specified in the functional and technical requirements. This document covers the app itself.
 
 Priority: **M** must (v1), **S** should, **C** could.
 
@@ -26,7 +26,7 @@ Priority: **M** must (v1), **S** should, **C** could.
 | AFR-SYN-04 | The app shows the sync state ("last synced", "offline") so the user knows alarms are current | M |
 | AFR-SET-01 | A first-run guide requests the needed permissions: exact alarms, full-screen intent, notifications, battery optimisation exemption | M |
 | AFR-SET-02 | The app shows a clear message when the dashboard is too old or too new for the app (API version check) | M |
-| AFR-SET-03 | The app checks for a newer bundled APK and offers to open the download | S |
+| AFR-SET-03 | The app checks `GET /app/info` for a newer APK in the app add-on and offers to open the download | S |
 | AFR-SET-04 | A health check screen tells the user if something would stop the alarm from ringing (permission missing, battery restriction, DND channel blocked) | S |
 | AFR-SET-05 | The install guide explains allowing "Install unknown apps" for the browser, needed for the first install and every update of a sideloaded APK | M |
 
@@ -45,11 +45,13 @@ Priority: **M** must (v1), **S** should, **C** could.
 | ATR-RNG-07 | Exact alarms use the `USE_EXACT_ALARM` permission (allowed for alarm-clock apps; falls back to `SCHEDULE_EXACT_ALARM` handling). Full-screen intent permission on Android 14+ is verified at runtime, since grant rules differ for sideloaded apps |
 | ATR-SYN-01 | The app computes occurrence ids and alarm times exactly as the server does, verified against the published test vectors in `docs/` (ids, DST, weekdays, skip), so it can report events offline. While away it schedules in its own time zone (D20) |
 | ATR-SYN-02 | Sync uses `GET /sync?since=<change_seq>`; writes use optimistic `revision`; reports use the dismiss/snooze/timed-out endpoints |
+| ATR-SYN-05 | **Ingress access (TR-APP-06):** after OAuth login the app opens the HA websocket, sends `supervisor/api` `GET /addons/<slug>/info` for the `ingress_entry` and `POST /ingress/session` for a session token, then calls `<ha_url>/api/hassio_ingress/<entry>/api/v1/...` with the `ingress_session` cookie. It renews the session with `/ingress/validate_session` and creates a new one on 401. Whether a **non-admin** user may make these calls is verified first (spike A2.0); if not, the design must be revisited before A2 continues |
+| ATR-SYN-06 | The dashboard add-on slug is deterministic for this repository (`<hash>_alarm_actions`) and built into the app as default; the user can override it by scanning the QR code or typing the slug shown on the "Install app" tab (TR-APP-09) |
 | ATR-SYN-03 | Network calls only to the user's HA URL over **HTTPS**; cleartext traffic is disabled in the network security config |
 | ATR-SYN-04 | HA OAuth requires the `client_id` to be a URL whose page declares the redirect URI. The project hosts a static page on GitHub Pages (e.g. `https://bertvanbaelen.github.io/HA-Clock-Dashboard/`) with `<link rel="redirect_uri" href="alarmactions://auth-callback">`; the app uses that `client_id` and handles the custom-scheme callback |
-| ATR-REL-01 | CI builds a release APK on tags, signs it with a keystore from GitHub secrets, and hands it to the integration release pipeline (TR-APP-02) |
+| ATR-REL-01 | CI builds a release APK on tags, signs it with a keystore from GitHub secrets, and copies it into the app add-on image (TR-APP-02) |
 | ATR-REL-02 | The keystore is backed up outside GitHub; losing it means users must uninstall to update |
-| ATR-REL-03 | `versionCode` increases on every release; `versionName` matches the integration version |
+| ATR-REL-03 | `versionCode` increases on every release; `versionName` matches the add-on version |
 | ATR-QLT-01 | Unit tests for the alarm schedule calculation (DST, weekdays, skip) and sync merge logic; instrumented tests for the ringing flow where feasible |
 | ATR-QLT-02 | A manual device test list covers several Android versions and manufacturers known for aggressive battery management |
 
@@ -71,3 +73,4 @@ iOS app, Play Store release, creating new scripts from the app, Wear OS, widgets
 1. Minimum Android version (29 is a suggestion).
 2. Gentle volume ramp and sound picker in v1, or later?
 3. Should a revoked token also stop alarms from ringing? (Proposed: no, a wake-up alarm should never silently fail.)
+4. Can a non-admin HA user open an ingress session for the add-on from the app (ATR-SYN-05)? To be answered by spike A2.0.

@@ -19,5 +19,7 @@
 | 3.13 | Owner validity check at execution; alarm disabled if owner inactive and stays disabled after reactivation | FR-ACC-04, SEC-03, D24 | Test with deleted and reactivated user |
 | 3.14 | "Before" action already past on save: skip, record `missed` | FR-EXE-09 | Verified, warning flag returned by API |
 | 3.15 | Bounded next-occurrence calculation | SEC-05 | No unbounded loops, DST tests |
+| 3.16 | Core unavailable at run time: retry until the grace period ends, then `missed`; recalculate on reconnect | TR-HA-01, 05, TR-SCH-04 | Test with fake Core going down around a planned run |
+| 3.17 | Add-on restart (e.g. after saving options) within the grace period runs due actions once | TR-SCH-05, D30 | Restart test passes |
 
-**Exit criteria:** An alarm with a *before*, *at*, and *after* action runs each at the right moment, including across a HA restart.
+**Exit criteria:** An alarm with a *before*, *at*, and *after* action runs each at the right moment, including across an add-on restart and a HA Core restart.

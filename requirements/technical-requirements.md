@@ -1,88 +1,122 @@
 # Technical Requirements
 
+Architecture (decision D28): this repository is a **Home Assistant add-on repository** with two add-ons. The user adds one repository URL in the Add-on Store and installs the add-ons they want.
+
+| Add-on | Slug | Purpose |
+|---|---|---|
+| Alarm Actions (dashboard) | `alarm_actions` | Sidebar panel, alarm storage, scheduler, executor, API for panel and app |
+| Alarm Actions App | `alarm_actions_app` | Serves the Android APK; when installed, the dashboard shows the "Install app" tab |
+
+```
+            HA frontend (sidebar "Alarms", ingress iframe)      Android app
+                         │                                          │ OAuth + ingress session
+                         ▼                                          ▼
+              HA Core / Supervisor ingress proxy  (login required, adds X-Remote-User-* headers)
+                         │
+                         ▼
+   ┌──────── alarm_actions add-on (container) ────────┐     ┌── alarm_actions_app add-on ──┐
+   │ aiohttp API + panel, scheduler, executor, SQLite │────►│ /info, /apk (internal only)  │
+   └──────────────────────┬───────────────────────────┘     └──────────────────────────────┘
+                          │ ws://supervisor/core/websocket (SUPERVISOR_TOKEN)
+                          ▼
+                HA Core: labels, entity registry, users, script.turn_on, event bus
+```
+
 ## 1. Platform
 | ID | Requirement |
 |---|---|
-| TR-PLT-01 | Custom integration for Home Assistant Core, domain `alarm_actions` (decision D7). **One integration per repository**, because HACS manages only one (decision D15) |
-| TR-PLT-02 | Distributed through HACS as a custom repository, with GitHub Releases and semantic version tags |
-| TR-PLT-03 | Minimum supported HA version **2026.3** (needed for local brand images, D27), defined in `hacs.json` (`homeassistant` key) and tested against current stable and previous release |
-| TR-PLT-04 | Python, fully async, no blocking I/O in the event loop |
-| TR-PLT-05 | Must pass `hassfest` and HACS validation GitHub Actions |
-| TR-PLT-06 | No external runtime dependencies beyond HA core where possible |
-| TR-PLT-07 | `manifest.json` defines at least `domain`, `name`, `version`, `documentation`, `issue_tracker`, `codeowners` (HACS requirement) |
-| TR-PLT-08 | Brand images (`icon.png`, optionally `logo.png` and dark/`@2x` variants) are shipped in `custom_components/alarm_actions/brand/`, which HA 2026.3+ picks up automatically (D27). They are not submitted to the `home-assistant/brands` repository |
+| TR-PLT-01 | The repository is a HA add-on repository (`repository.yaml` at the root) containing two add-ons: `alarm_actions` and `alarm_actions_app` (D28) |
+| TR-PLT-02 | Both add-ons share one semantic version, set in each `config.yaml`, released together with a GitHub Release and a `CHANGELOG.md` per add-on |
+| TR-PLT-03 | Requires a Supervisor installation (**HA OS or Supervised**). The `homeassistant` key in `config.yaml` sets the minimum Core version (at least 2024.4, for labels). Tested against the current stable and previous Core release |
+| TR-PLT-04 | Service code in Python 3.12+, fully async (`aiohttp`), on the official HA base image (`ghcr.io/home-assistant/{arch}-base-python`) |
+| TR-PLT-05 | Must pass the add-on linter (`frenck/action-addon-linter`) and build with `home-assistant/builder` |
+| TR-PLT-06 | Architectures `aarch64` and `amd64`. Images are prebuilt by CI, pushed to GHCR and referenced with `image:` in `config.yaml`, so users never build locally |
+| TR-PLT-07 | Dashboard `config.yaml` sets at least: `ingress: true`, `ingress_port`, `panel_icon: mdi:alarm`, `panel_title: Alarms`, **`panel_admin: false`** (so non-admin users see the panel), `homeassistant_api: true`, `boot: auto`, `watchdog`, `init: false`, `options`/`schema`, backup settings (TR-DAT-07) |
+| TR-PLT-08 | Each add-on folder contains `icon.png`, `logo.png`, `DOCS.md`, `CHANGELOG.md` and `translations/en.yaml` (option labels) |
+| TR-PLT-09 | Least privilege: no exposed `ports`, no `host_network`, not `privileged`, no `hassio_api` unless a feature needs it, default AppArmor profile (SEC-12) |
+| TR-PLT-10 | When the Supervisor upgrades the image (the version in `config.yaml` on the default branch), the image for that version must already exist on GHCR. CI publishes images before the version bump is merged |
 
 ## 2. Repository structure
 ```
-custom_components/alarm_actions/
-  manifest.json
-  __init__.py          setup, panel + API registration
-  const.py
-  config_flow.py       single-instance setup, options flow
-  models.py            dataclasses for domain objects
-  storage.py           persistence (HA Store)
-  scheduler.py         next-occurrence calc + timers
-  executor.py          runs scripts, records results
-  security.py          owner/admin checks, validation helpers
-  ratelimit.py         script-start and API rate limiting
-  api.py               HTTP views
-  sync.py              sync and client registration for the app
-  app_download.py      app info and signed APK download link
-  app/                 alarm_actions.apk, added by release CI (not in git)
-  sensor.py, switch.py opt-in entities
-  diagnostics.py       redacted diagnostics
-  services.yaml
-  translations/en.json
-  brand/icon.png       brand images (D27)
-  frontend/            Lit + TypeScript source, built bundle
-hacs.json              zip_release + filename (see section 12)
-LICENSE                MIT
-android/               Kotlin app source (see app-requirements.md)
-docs/openapi.yaml
+repository.yaml                 add-on repository metadata (name, url, maintainer)
+alarm_actions/                  dashboard add-on
+  config.yaml  build.yaml  Dockerfile  DOCS.md  CHANGELOG.md  icon.png  logo.png
+  translations/en.yaml
+  rootfs/                       s6 service definition
+  service/
+    main.py                     startup, aiohttp app, ingress server
+    ha_client.py                websocket connection to HA Core (TR-HA)
+    models.py                   dataclasses for domain objects
+    storage.py                  SQLite persistence and migrations
+    scheduler.py                next-occurrence calc + timers
+    executor.py                 runs scripts, records results
+    security.py                 ingress identity, owner/admin checks, validation
+    ratelimit.py                script-start and API rate limiting
+    api.py                      HTTP routes
+    sync.py                     sync and client registration for the app
+    app_proxy.py                detects the app add-on, proxies APK info/download
+  frontend/                     Lit + TypeScript source; bundle built in the image build
+alarm_actions_app/              Android app add-on
+  config.yaml  build.yaml  Dockerfile  DOCS.md  CHANGELOG.md  icon.png  logo.png
+  server.py                     /info and /apk on the internal network only
+  (alarm_actions.apk is copied in by release CI, never committed)
+android/                        Kotlin app source (see app-requirements.md)
+docs/openapi.yaml               API contract; docs/test-vectors/ for ids and schedules
 tests/
-.github/
-  workflows/           hassfest, hacs, lint, tests, release
+LICENSE                         MIT
+.github/workflows/              lint, tests, add-on linter, image build, APK build, release
 ```
 
 ## 3. Persistence
 | ID | Requirement |
 |---|---|
-| TR-DAT-01 | Alarms and settings are stored with `homeassistant.helpers.storage.Store`, in `.storage/alarm_actions` |
-| TR-DAT-02 | Stored data has a `version`; a migration function handles schema upgrades |
-| TR-DAT-03 | Execution history is capped per user (default last 200 entries, 30 days) and stored separately from alarms |
-| TR-DAT-04 | Writes are debounced (`async_delay_save`) except for dismiss events and write-ahead execution records (TR-SCH-06), which are saved immediately |
+| TR-DAT-01 | Alarms, occurrences, events, clients and history are stored in SQLite at `/data/alarm_actions.db` (WAL mode). `/data` survives add-on updates and is included in HA backups |
+| TR-DAT-02 | The database has a schema version; migrations run on start |
+| TR-DAT-03 | Execution history is capped per user (default last 200 entries, 30 days) |
+| TR-DAT-04 | Every change is a transaction. Write-ahead execution records (TR-SCH-06) are committed before the script call |
 | TR-DAT-05 | IDs are UUIDv4 strings, generated server-side. Action ids are preserved when a `PUT` sends an existing id (D26) |
-| TR-DAT-06 | The store keeps one monotonic `change_seq`. Every alarm change (user or system) and every deletion takes the next value; deletions are kept as tombstones for at least 30 days (D25) |
+| TR-DAT-06 | One monotonic `change_seq`. Every alarm change (user or system) and every deletion takes the next value; deletions are kept as tombstones for at least 30 days (D25) |
+| TR-DAT-07 | `backup: hot` with a `backup_pre` step that writes a consistent SQLite snapshot. Cold backups are not used, because they stop the scheduler and HA's nightly backup runs in the early morning, when alarms are due |
 
-## 4. Scheduling
+## 4. Connection to Home Assistant Core
 | ID | Requirement |
 |---|---|
-| TR-SCH-01 | Next occurrence is computed in the HA configured time zone using `zoneinfo` and handles DST changes (nonexistent and ambiguous local times) |
-| TR-SCH-02 | For every enabled alarm, the scheduler computes the next *occurrence* and, for each action, a *planned run* (occurrence time + offset). Planned runs are tracked per occurrence, because an alarm can have several active occurrences at once (an earlier one still ringing or with `after` runs pending) |
-| TR-SCH-03 | Timers use `async_track_point_in_utc_time`; a single timer for the earliest planned run, rescheduled after each |
-| TR-SCH-04 | Scheduler recalculates on: alarm create/update/delete, skip, settings change, HA start, time zone change, away-state change |
-| TR-SCH-05 | On start, planned runs within the grace period are executed; older are recorded as `missed` |
-| TR-SCH-06 | Planned runs have a deterministic id `<occurrence_id>_<alarm_action_id>` to guarantee exactly-once execution. The execution record is written as `running` and saved immediately **before** the script call; a record still `running` at startup becomes `failed` ("interrupted") and is not retried |
+| TR-HA-01 | The add-on connects to `ws://supervisor/core/websocket` with `SUPERVISOR_TOKEN` (`homeassistant_api: true`). It reconnects with backoff; Core restarts are normal and must not lose state |
+| TR-HA-02 | The HA time zone is read with `get_config` and refreshed on `core_config_updated` |
+| TR-HA-03 | Labeled scripts are found with `config/label_registry/list` and `config/entity_registry/list`, with name and icon from the state. The result is cached and refreshed on `label_registry_updated` and `entity_registry_updated` |
+| TR-HA-04 | Users (`is_active`, `is_admin`, name) come from `config/auth/list`; refreshed periodically and checked before each execution (owner check) |
+| TR-HA-05 | If Core is unreachable when a run is due, the run is retried until the grace period ends, then recorded as `missed` |
+
+## 5. Scheduling
+| ID | Requirement |
+|---|---|
+| TR-SCH-01 | Next occurrence is computed in the HA time zone using `zoneinfo` and handles DST changes (nonexistent and ambiguous local times) |
+| TR-SCH-02 | For every enabled alarm, the scheduler computes the next *occurrence* and, for each action, a *planned run* (occurrence time + offset). Planned runs are tracked per occurrence, because an alarm can have several active occurrences at once |
+| TR-SCH-03 | One asyncio timer for the earliest planned run, rescheduled after each run. The timer is re-checked at least every 60 s against wall-clock UTC, so clock corrections cannot delay runs |
+| TR-SCH-04 | Scheduler recalculates on: alarm create/update/delete, skip, add-on start (also after an options change, which restarts the add-on), Core reconnect, time zone change, away-state change |
+| TR-SCH-05 | On add-on start, planned runs within the grace period are executed; older are recorded as `missed` |
+| TR-SCH-06 | Planned runs have a deterministic id `<occurrence_id>_<alarm_action_id>` to guarantee exactly-once execution. The execution record is committed as `running` **before** the script call; a record still `running` at startup becomes `failed` ("interrupted") and is not retried |
 | TR-SCH-07 | "After dismissal" runs are created on the dismiss event, not pre-scheduled; a timeout timer (or a `timed_out` event) expires them. A computed run time already past by more than the grace period is recorded as `missed` |
 | TR-SCH-08 | Early dismissal (before the occurrence fires) cancels its `before`/`at`/`after` runs not yet started (D22) |
 | TR-SCH-09 | When the owner is away (latest client `time_zone` ≠ HA time zone, D20), the executor records the owner's runs as `skipped` ("user away") instead of running them |
 
-## 5. Execution
+## 6. Execution
 | ID | Requirement |
 |---|---|
-| TR-EXE-01 | Actions are executed with `hass.services.async_call("script", "turn_on", {"entity_id": ...}, blocking=False)` |
+| TR-EXE-01 | Actions are executed with the websocket command `call_service` (`script.turn_on`, `target.entity_id`), without waiting for the script to finish |
 | TR-EXE-02 | Before each execution, verify the script entity exists and still has the configured label; otherwise record `unavailable` |
-| TR-EXE-03 | Failures never stop other actions; each is isolated with try/except and logged |
-| TR-EXE-04 | Label lookup uses the HA label registry and entity registry |
+| TR-EXE-03 | Failures never stop other actions; each is isolated and logged |
+| TR-EXE-04 | Label lookup uses the cached registries of TR-HA-03 |
 | TR-EXE-05 | The executor passes no variables or data to scripts and enforces the rate limit and duplicate suppression of SEC-05. Starts over the limit are dropped and recorded as `skipped` (D21). "Run now" goes through the same executor and limits |
-| TR-EXE-06 | Before executing, the alarm owner is verified to exist and be active (SEC-03) |
+| TR-EXE-06 | Before executing, the alarm owner is verified to exist and be active (TR-HA-04, SEC-03) |
 
-## 6. API
-All endpoints under `/api/alarm_actions/`, implemented as `HomeAssistantView` with `requires_auth = True`. JSON only. Standard HTTP status codes; errors as `{ "error": "code", "message": "..." }`. Authorisation rules: see [security-requirements.md](security-requirements.md).
+## 7. API
+Served by the dashboard add-on on its `ingress_port` and reachable **only through HA ingress** (`/api/hassio_ingress/<token>/api/v1/...`). JSON only. Standard HTTP status codes; errors as `{ "error": "code", "message": "..." }`. Authorisation rules: see [security-requirements.md](security-requirements.md).
 
-| Method | Path | Description |
+| Method | Path (under `api/v1`) | Description |
 |---|---|---|
-| GET | `/info` | Integration version, `api_version`, `min_client_api_version`, whether an app is offered |
+| GET | `/info` | Add-on version, `api_version`, `min_client_api_version`, whether the app add-on is available |
+| GET | `/me` | Current user id, name, admin flag, away state |
 | GET | `/alarms` | List alarms visible to the user (includes `revision` and `next_occurrence`) |
 | POST | `/alarms` | Create alarm |
 | GET | `/alarms/{id}` | Get alarm |
@@ -96,80 +130,77 @@ All endpoints under `/api/alarm_actions/`, implemented as `HomeAssistantView` wi
 | POST | `/alarms/{id}/occurrences/{occurrence_id}/snoozed` | Report snooze |
 | POST | `/alarms/{id}/occurrences/{occurrence_id}/timed_out` | Report that ringing stopped without dismissal |
 | GET | `/history?alarm_id=&limit=` | Execution history (own alarms; admins all) |
-| GET / PUT | `/settings` | Read / update settings (admin for PUT) |
-
-App-related endpoints (same integration):
-
-| Method | Path | Description |
-|---|---|---|
+| GET | `/settings` | Read settings (they are changed in the add-on configuration, D30) |
 | GET | `/sync?since=<change_seq>` | Alarms changed since a `change_seq`, deleted ids, current `change_seq`, default snooze |
 | POST | `/clients` | Register or update an app instance, including its current time zone (called on every sync) |
 | GET | `/clients` | The user's own phones with last sync time and away state (admins: all) |
-| GET | `/app/info` | Bundled APK version, checksum, availability |
-| POST | `/app/download-link` | Create a short-lived signed link to the APK for the logged-in user |
+| GET | `/app/info` | APK version, checksum and availability (from the app add-on) |
+| GET | `/app/apk` | APK download, proxied from the app add-on |
+| GET | `/debug` | Admin only: redacted scheduler and storage state |
 
 | ID | Requirement |
 |---|---|
-| TR-API-01 | The API is versioned by the path and by an integer `api_version` in `GET /info`. Additive changes keep the number; breaking changes bump it and are listed in the changelog |
+| TR-API-01 | The API is versioned by the path (`/api/v1`) and by an integer `api_version` in `GET /info`. Additive changes keep the number; breaking changes bump it and are listed in the changelog |
 | TR-API-02 | Writes use optimistic concurrency via `revision` in the request body; a mismatch returns `409` |
-| TR-API-03 | Input validated with `voluptuous` schemas; unknown fields rejected (SEC-05) |
-| TR-API-04 | An `occurrence_id` is deterministic: `<alarm_id>_<YYYYMMDDTHHMMSSZ>` (scheduled UTC time, D26), so the app can compute it offline. Test vectors for ids **and** schedule calculation (DST, weekdays, skip) are published in `docs/` |
+| TR-API-03 | Input validated with strict schemas (e.g. `voluptuous` or `pydantic`); unknown fields rejected (SEC-05) |
+| TR-API-04 | An `occurrence_id` is deterministic: `<alarm_id>_<YYYYMMDDTHHMMSSZ>` (scheduled UTC time, D26), so the app can compute it offline. Test vectors for ids **and** schedule calculation (DST, weekdays, skip) are published in `docs/test-vectors/` |
 | TR-API-05 | `docs/openapi.yaml` is the contract for this repository, validated in CI |
 | TR-API-06 | `GET /info` returns `min_client_api_version` so a client such as the app can detect an incompatible dashboard and show a clear message |
 | TR-API-07 | Foreign or unknown objects return `404`; admin-only endpoints and admin writes to other users' alarms return `403` (SEC-03, D19) |
 | TR-API-08 | Weekdays are exchanged as `mon`..`sun`, never as numbers (D26) |
+| TR-API-09 | **Identity (D29):** the user is taken from the `X-Remote-User-Id` header that HA ingress adds. Requests are accepted only from the Supervisor ingress proxy address (`172.30.32.2`); any other source, or a request without the header, gets `401`. Admin status comes from TR-HA-04 |
+| TR-API-10 | All routes use relative URLs, because the ingress path prefix differs per installation |
 
-## 7. Frontend
+## 8. Frontend
 | ID | Requirement |
 |---|---|
-| TR-UI-01 | Registered via `panel_custom` with `sidebar_title`, icon `mdi:alarm`, `require_admin: false` |
-| TR-UI-02 | Implemented in **Lit + TypeScript**, bundled with **Vite**, using HA CSS variables for theming (decision D4) |
-| TR-UI-03 | The built bundle is produced by CI and attached to the release (and included in the HACS zip), so users need no build tooling |
-| TR-UI-04 | Static files are registered through `hass.http.async_register_static_paths`. These are served without authentication, so the bundle must hold no sensitive data (SEC-08) |
-| TR-UI-05 | The panel talks to the API via `hass.callApi`, inheriting the user's session |
-| TR-UI-06 | The panel shows an "Install app" tab when `GET /app/info` reports an available APK |
-| TR-UI-07 | No `innerHTML`/`unsafeHTML` with user data, no third-party requests (SEC-07, 02) |
+| TR-UI-01 | The panel is the dashboard add-on's ingress panel (sidebar "Alarms", `mdi:alarm`, visible to non-admins via `panel_admin: false`) |
+| TR-UI-02 | Implemented in **Lit + TypeScript**, bundled with **Vite** (decision D4) |
+| TR-UI-03 | The bundle is built in a Node stage of the multi-stage `Dockerfile`, so users need no build tooling |
+| TR-UI-04 | The panel calls the add-on API with relative URLs; the ingress session cookie provides the login |
+| TR-UI-05 | Theme and language follow HA: the panel reads HA's theme CSS variables and language from the parent frame (same origin), with `prefers-color-scheme` as fallback |
+| TR-UI-06 | The panel shows an "Install app" tab when `GET /app/info` reports the app add-on is installed and running |
+| TR-UI-07 | No `innerHTML`/`unsafeHTML` with user data, no third-party requests (SEC-07) |
 
-## 8. Security
-See [security-requirements.md](security-requirements.md) (IDs `SEC-*`). Implementation entry points: `security.py` (owner check and validation helpers) and `ratelimit.py`.
+## 9. Security
+See [security-requirements.md](security-requirements.md) (IDs `SEC-*`). Implementation entry points: `security.py` (ingress identity, owner check, validation) and `ratelimit.py`.
 
-## 9. Events and entities
+## 10. Events
 | ID | Requirement |
 |---|---|
-| TR-EVT-01 | Fire `alarm_actions_alarm_dismissed`, `alarm_actions_alarm_snoozed`, and `alarm_actions_action_executed` on the HA event bus, with ids, timestamps and (for executions) the `result` only (SEC-06), so users can build e.g. "notify on failure" automations |
-| TR-ENT-01 | A `sensor` with device class `timestamp` for the next alarm, created through the config entry with `entity_registry_enabled_default = False` (SEC-03) |
-| TR-ENT-02 | Optional per-alarm `switch` entities, also disabled by default |
+| TR-EVT-01 | Fire `alarm_actions_alarm_dismissed`, `alarm_actions_alarm_snoozed`, and `alarm_actions_action_executed` on the HA event bus (websocket `fire_event`), with ids, timestamps and (for executions) the `result` only (SEC-06), so users can build e.g. "notify on failure" automations |
 
-## 10. Quality
+There are no HA entities (D31). The phone's next alarm is visible in HA through the Companion App's own *Next alarm* sensor, because the Android app uses `setAlarmClock`.
+
+## 11. Quality
 | ID | Requirement |
 |---|---|
-| TR-QLT-01 | Unit tests with `pytest` and `pytest-homeassistant-custom-component` |
-| TR-QLT-02 | The scheduler is tested for DST transitions, midnight rollover, restart recovery, and skip behavior |
-| TR-QLT-03 | Linting with `ruff`; type hints with `mypy` where practical |
-| TR-QLT-04 | CI runs hassfest, HACS validation, lint, and tests on each PR |
-| TR-QLT-05 | Changelog maintained per release |
-| TR-QLT-06 | Authorisation and route-authentication tests (SEC-11) run in CI |
-| TR-QLT-07 | The release workflow fails if `manifest.json` `version` does not match the git tag |
+| TR-QLT-01 | Unit tests with `pytest` and the `aiohttp` test client, against a fake HA websocket server |
+| TR-QLT-02 | The scheduler is tested for DST transitions, midnight rollover, restart recovery, Core disconnects, and skip behavior |
+| TR-QLT-03 | Linting with `ruff`; type hints with `mypy` where practical; `eslint` and `tsc` for the frontend |
+| TR-QLT-04 | CI runs the add-on linter, lint, tests and a test image build on each PR |
+| TR-QLT-05 | Changelog maintained per release and per add-on |
+| TR-QLT-06 | Authorisation and identity tests (SEC-11) run in CI, including requests from a non-ingress source address |
+| TR-QLT-07 | The release workflow fails if the two `config.yaml` versions differ from each other or from the git tag |
 
-## 11. Observability
+## 12. Observability
 | ID | Requirement |
 |---|---|
-| TR-OBS-01 | Standard HA logger `logging.getLogger(__name__)`; debug logs for scheduling decisions |
-| TR-OBS-02 | A diagnostics platform exposes redacted alarm and scheduler state |
+| TR-OBS-01 | Logs to stdout (visible in the add-on Log tab), with a `log_level` option; debug logs for scheduling decisions |
+| TR-OBS-02 | Admin-only `GET /debug` returns redacted alarm and scheduler state |
 
-## 12. App distribution
+## 13. App add-on and app access
 | ID | Requirement |
 |---|---|
-| TR-APP-01 | `hacs.json` sets `"zip_release": true` and `"filename": "alarm_actions.zip"`. The release zip holds the contents of `custom_components/alarm_actions/` including `app/alarm_actions.apk` |
-| TR-APP-02 | Release CI builds the Android app, signs it with a keystore stored as a GitHub secret, copies the APK into the zip, and publishes a SHA-256 checksum. The APK is never committed to git |
-| TR-APP-03 | If installed from the branch instead of a release, no APK is present and the Install tab stays hidden |
-| TR-APP-04 | An integration option "Offer Android app" (default on) controls whether the tab and endpoints are active |
-| TR-APP-05 | `POST /app/download-link` requires login and returns a link signed with HA's `async_sign_path`, valid for about 60 seconds. The APK itself contains no secrets or server address |
-| TR-APP-06 | The download view serves the file with `Content-Type: application/vnd.android.package-archive` and a fixed filename including the version |
+| TR-APP-01 | The `alarm_actions_app` image contains the signed APK and a small HTTP server that serves `/info` (version, SHA-256) and `/apk` on the internal Supervisor network only: no ports, no ingress panel |
+| TR-APP-02 | Release CI builds the Android app, signs it with a keystore stored as a GitHub secret, copies the APK into the app add-on image, and publishes a SHA-256 checksum. The APK is never committed to git |
+| TR-APP-03 | The dashboard detects the app add-on by calling it on its internal hostname (derived from its own hostname, `<repo-hash>-alarm-actions` → `<repo-hash>-alarm-actions-app`). Not reachable → `GET /app/info` reports unavailable and the tab is hidden |
+| TR-APP-04 | The APK is downloaded through the dashboard's ingress API (`GET /app/apk`), so it requires HA login. It is served with `Content-Type: application/vnd.android.package-archive` and a fixed filename including the version. No signed links are needed |
+| TR-APP-05 | The APK contains no secrets or server address |
+| TR-APP-06 | **App access path:** the app logs in with HA OAuth, opens the HA websocket, calls `supervisor/api` `GET /addons/<slug>/info` to get the ingress entry and `POST /ingress/session` to get an ingress session, then calls `/api/hassio_ingress/<entry>/api/v1/...` with the `ingress_session` cookie, renewing it via `/ingress/validate_session`. That a **non-admin** user may make these Supervisor calls must be verified in an early spike (A2.0) |
 | TR-APP-07 | `GET /sync` returns alarms with `change_seq > since`, plus ids deleted since then (tombstones kept for at least 30 days), and the current `change_seq`. A client whose `since` is older than the tombstone window gets a full resync |
-| TR-APP-08 | The app and integration share the contract in `docs/openapi.yaml`; the app checks `min_client_api_version` from `GET /info` on every sync |
-| TR-APP-09 | The APK is kept small (release build with R8 shrinking); it is stored in the HA config folder and therefore included in every HA backup |
+| TR-APP-08 | The app and the dashboard add-on share the contract in `docs/openapi.yaml`; the app checks `min_client_api_version` from `GET /info` on every sync |
+| TR-APP-09 | The dashboard add-on slug is deterministic for this repository URL; the Install app tab also shows it as a QR code so a fork or a renamed repository still works |
 
 ## Decisions on earlier open questions
-Frontend Lit + TypeScript + Vite (D4), single config entry (D5), polling sync (D6), one repository with one integration (D15), sync cursor `change_seq` (D25), contract formats (D26), local brand images (D27). See [../analysis/decisions.md](../analysis/decisions.md).
-
+Frontend Lit + TypeScript + Vite (D4), polling sync (D6), sync cursor `change_seq` (D25), contract formats (D26), add-on repository with two add-ons (D28), ingress identity (D29), settings in add-on configuration (D30), no HA entities (D31), app add-on (D32). See [../analysis/decisions.md](../analysis/decisions.md).

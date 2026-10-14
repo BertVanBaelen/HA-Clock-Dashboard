@@ -1,6 +1,6 @@
 # Functional Domain Analysis
 
-This document describes every domain object of the integration: purpose, attributes, rules, lifecycle, and relations. It is the basis for the data model and the API contract.
+This document describes every domain object of the Alarm Actions add-ons: purpose, attributes, rules, lifecycle, and relations. It is the basis for the data model and the API contract.
 
 ## 1. Overview
 
@@ -55,7 +55,7 @@ Settings (global)        Client (app instance) *───1 User
 - Changes made by the system (skip reset, one-time auto-disable, owner-inactive disable) also bump `revision` and `change_seq`, so clients learn about them through sync.
 - **Edits during an active occurrence** (fired or snoozed): changes to `time` and `repeat_days` apply from the next occurrence. The active occurrence keeps its pending runs, except runs of actions that were removed or disabled, which are cancelled.
 - Deleting an alarm cancels all its pending planned runs, including those of active occurrences. History entries are kept until they expire.
-- A user may have at most 50 alarms and an alarm at most 20 actions (integration-wide cap: 1000 actions).
+- A user may have at most 50 alarms and an alarm at most 20 actions (cap across all users: 1000 actions).
 - **Ownership:** only the owner can change an alarm; admins can view it (D19). For anyone else it behaves as non-existent (404).
 - If the owner is deleted or deactivated, the alarm is disabled and its runs are recorded as `skipped` ("owner inactive"). If the owner is reactivated, the alarms stay disabled until the owner turns them on again (D24).
 - Alarm times and labels are personal data (they reveal sleeping patterns).
@@ -102,7 +102,7 @@ Enabled(one-time) → fired → Disabled   (fired occurrence completes its runs)
 
 ## 4. ActionDefinition
 
-**Purpose:** An action the user is allowed to choose. It is a Home Assistant script with the label `alarm_action`. Not owned or stored by this integration.
+**Purpose:** An action the user is allowed to choose. It is a Home Assistant script with the label `alarm_action`. Not owned or stored by the add-on.
 
 | Attribute | Source | Notes |
 |---|---|---|
@@ -235,10 +235,10 @@ fired/snoozed ──timeout or timed_out event──► expired
 | `grace_period_minutes` | 5 | Restart recovery window, and limit for stale late reports |
 | `action_label` | `alarm_action` | Label used to find scripts |
 | `history_days` / `history_max` | 30 / 200 | `history_max` is per user |
-| `max_script_starts_per_minute` | 20 | Integration-wide rate limit. Starts beyond it are **dropped** and recorded as `skipped` ("rate limited") (D21) |
+| `max_script_starts_per_minute` | 20 | Rate limit across all users. Starts beyond it are **dropped** and recorded as `skipped` ("rate limited") (D21) |
 | `min_script_interval_seconds` | 30 | Duplicate-start suppression per script; a suppressed start is recorded as `skipped` ("duplicate start") |
 
-**Rules:** Readable by every user, writable by admins only. Changing values reschedules everything.
+**Rules:** Settings are options of the dashboard add-on and can only be changed in its configuration page, so only admins can change them (D30). Every user can read them through the API. Saving options restarts the add-on; the scheduler then recalculates everything, and the grace period covers runs due during the restart.
 
 ---
 
@@ -277,10 +277,10 @@ fired/snoozed ──timeout or timed_out event──► expired
 5. **Ownership:** users only modify their own alarms; admins may view all, but not change them (D19).
 6. **Concurrency:** updates carry a `revision`; a mismatch returns 409 and the client must refetch.
 7. **Own alarms only:** users can only see and change their own alarms; others get "not found".
-8. **Login everywhere:** every endpoint requires a Home Assistant login, so exposing HA to the internet for the app adds no open logic.
-9. **Script gate:** the integration only starts labeled scripts, with no parameters from users.
+8. **Login everywhere:** every request reaches the add-on through HA ingress and therefore requires a Home Assistant login, so exposing HA to the internet for the app adds no open logic.
+9. **Script gate:** the add-on only starts labeled scripts, with no parameters from users.
 10. **Safety:** exactly-once execution, rate limiting and the missed-run policy prevent repeated or stale device actions.
-11. **Dashboard without app:** the dashboard works fully without the Android app; the app is an optional extra downloaded from the same integration.
+11. **Dashboard without app:** the dashboard add-on works fully on its own; the Android app is optional and is offered only when the second add-on ("Alarm Actions App") is installed (D32).
 12. **Away (D20):** when the owner's most recently seen phone reports a time zone different from HA's, the owner is treated as not at home. The phone rings at its local wall-clock time; HA runs **no** actions for that owner's occurrences and records them as `skipped` ("user away"). The panel shows the away state. Normal behaviour resumes as soon as the phone reports the HA time zone again. Known limit: a phone that has not synced since travelling is not detected.
 
 Detailed security requirements: [../requirements/security-requirements.md](../requirements/security-requirements.md).
@@ -323,12 +323,12 @@ Who may do what. "Other user" is any HA user who is not the owner. The "Admin" c
 | List available actions (labeled scripts) | Yes | Yes | Yes | Rejected |
 | Sync own alarms (`/sync`) | Own only | Own only | Own only | Rejected |
 | Register an app instance (incl. time zone) | Yes (own) | n/a | Yes (own) | Rejected |
-| Request APK download link | Any logged-in user | Any logged-in user | Yes | Rejected |
+| Download the APK (when the app add-on runs) | Any logged-in user | Any logged-in user | Yes | Rejected |
 | Read settings | Yes | Yes | Yes | Rejected |
-| Change settings | No | No | Yes | Rejected |
+| Change settings (add-on configuration page) | No | No | Yes | Rejected |
 
 **Rules**
-- The owner is fixed when the alarm is created and cannot be changed or supplied by the client; it always comes from the logged-in session.
+- The owner is fixed when the alarm is created and cannot be changed or supplied by the client; it always comes from the HA user that ingress identifies.
 - "Not found" instead of "forbidden" for other people's alarms, so ids cannot be probed. Admins get 403 on writes because they can already see the alarm.
 - Admins have **view-only** access to other users' alarms (D19). To stop another user's alarms, an admin deactivates that HA user (alarms are then disabled, section 2).
 - Alarms of a deleted or deactivated user are disabled, and stay disabled after reactivation.
@@ -336,16 +336,15 @@ Who may do what. "Other user" is any HA user who is not the owner. The "Admin" c
 
 ## 14. Internet exposure
 
-The app must work outside the home, so Home Assistant itself is reachable on a public URL. The integration must not add anything open to the internet.
+The app must work outside the home, so Home Assistant itself is reachable on a public URL. The add-ons must not add anything open to the internet.
 
 | Part | Reachable without login? | Notes |
 |---|---|---|
-| API endpoints (`/api/alarm_actions/...`) | **No**, HA login required | Same login as everything in HA; used by panel and app |
-| Scheduler, executor | Not reachable | Runs inside HA only |
+| Dashboard add-on API and panel | **No**, only through HA ingress, which requires HA login | No host port is exposed; used by panel and app |
+| App add-on (APK) | Not reachable from outside | Internal Supervisor network only; the APK is downloaded through the dashboard API |
+| Scheduler, executor | Not reachable | Runs inside the add-on container |
 | Webhooks, public URLs | **None** | |
-| APK download link | Only via a ~60 second signed link that a logged-in user requests | The APK holds no secrets or server address |
 | Cloud services, outbound calls | **None** | Nothing leaves HA |
-| Panel JavaScript bundle | Yes, as a static file | HA does not protect static files; the bundle contains only UI code, no data |
 
-**How the app gets access from outside:** it logs in with the user's HA account (OAuth through HA), receives a token, and calls the same API. HA's OAuth flow requires the app's `client_id` to be a URL whose page declares the app's redirect URI; this is a static page on the project's GitHub Pages and contains no data. A lost phone's token can be revoked in the HA user profile. Use a non-admin user for each phone.
+**How the app gets access from outside:** it logs in with the user's HA account (OAuth through HA), receives a token, opens an ingress session for the dashboard add-on and calls the same API as the panel (see TR-APP-06). HA's OAuth flow requires the app's `client_id` to be a URL whose page declares the app's redirect URI; this is a static page on the project's GitHub Pages and contains no data. A lost phone's token can be revoked in the HA user profile. Use a non-admin user for each phone.
 

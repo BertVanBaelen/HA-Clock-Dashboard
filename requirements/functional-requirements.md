@@ -58,31 +58,30 @@ IDs are stable; reference them in issues and PRs.
 ## 5. Dashboard panel
 | ID | Requirement | Prio |
 |---|---|---|
-| FR-UI-01 | A sidebar panel "Alarms" lists all alarms with toggle, time, days, next trigger | M |
+| FR-UI-01 | Installing the dashboard add-on adds a sidebar panel "Alarms", visible to all users (also non-admins), listing the user's alarms with toggle, time, days, next trigger | M |
 | FR-UI-02 | Create/edit dialog for alarm fields and action list | M |
 | FR-UI-03 | Action picker shows script name and icon | M |
 | FR-UI-04 | History view shows recent executions per alarm | S |
 | FR-UI-05 | Works on desktop and mobile (HA Companion App on iOS and Android) | M |
 | FR-UI-06 | Follows the HA theme (light/dark) | S |
-| FR-UI-07 | An "Install app" tab lets the user download the Android app. It appears only when an APK is bundled in the installed release and the option "Offer Android app" is on (section 9) | S |
+| FR-UI-07 | An "Install app" tab lets the user download the Android app. It appears only when the app add-on is installed and running (section 8) | S |
 | FR-UI-08 | Translations: English at minimum | M |
 | FR-UI-09 | When an edit causes a *before* action to be skipped for the next occurrence, the UI shows a warning before saving (FR-EXE-09) | M |
 | FR-UI-10 | The panel shows the user's connected phones with their last sync time, and an "away, actions paused" banner when FR-EXE-12 applies | S |
 
 ## 6. Settings
+Settings are options of the dashboard add-on (Settings → Add-ons → Alarm Actions → Configuration), so only admins can change them (D30). The panel shows them read-only.
+
 | ID | Requirement | Prio |
 |---|---|---|
 | FR-SET-01 | Configurable default snooze duration (default 9 min) | S |
 | FR-SET-02 | Configurable dismissal timeout and restart grace period | S |
 | FR-SET-03 | Configurable label name for action scripts (default `alarm_action`) | C |
+| FR-SET-04 | Configurable rate limit and log level | C |
 
-## 7. Home Assistant entities
-| ID | Requirement | Prio |
-|---|---|---|
-| FR-ENT-01 | Sensor with the next upcoming alarm time across all alarms. **Disabled by default (opt-in)**, because entities are visible to all HA users | S |
-| FR-ENT-02 | Per-alarm switch entity to enable/disable an alarm from other automations. Disabled by default | C |
+There are no Home Assistant entities (D31). The phone's next alarm appears in the HA Companion App's own *Next alarm* sensor.
 
-## 8. Access and ownership
+## 7. Access and ownership
 | ID | Requirement | Prio |
 |---|---|---|
 | FR-ACC-01 | Every alarm has an owner (the HA user who created it) | M |
@@ -91,23 +90,23 @@ IDs are stable; reference them in issues and PRs.
 | FR-ACC-04 | Alarms of a deleted or deactivated HA user stop running and are disabled; they stay disabled if the user is reactivated (D24) | M |
 | FR-ACC-05 | Requests for alarms the user may not access behave as "not found" | M |
 
-## 9. App distribution and sync (server side)
-The Android app itself is specified in [app-requirements.md](app-requirements.md).
+## 8. App distribution and sync (server side)
+The Android app is offered by a second, optional add-on in the same repository, "Alarm Actions App" (D32). The app itself is specified in [app-requirements.md](app-requirements.md).
 
 | ID | Requirement | Prio |
 |---|---|---|
-| FR-APP-01 | A logged-in user can download the Android APK from the panel | S |
-| FR-APP-02 | The tab and download are hidden when no APK is bundled or the option "Offer Android app" is off | S |
+| FR-APP-01 | A logged-in user can download the Android APK from the panel's "Install app" tab | S |
+| FR-APP-02 | The tab and download are only available while the app add-on is installed and running; without it the dashboard works fully | S |
 | FR-APP-03 | The app can fetch alarms changed since its last sync, including deletions | M |
 | FR-APP-04 | The app registers itself and reports its time zone on every sync, so the dashboard can show connected devices, last sync time and away state | M |
 | FR-APP-05 | The app can ask which app version is bundled, to offer updates | S |
 | FR-APP-06 | The dashboard tells the app when it is too old or too new for the API, so the app shows a clear message | M |
 
-## 10. Security
+## 9. Security
 See [security-requirements.md](security-requirements.md) (IDs `SEC-*`). Visible behaviour: users only see and change their own alarms (FR-ACC), and every endpoint requires a Home Assistant login.
 
-## 11. Non-goals (v1)
-Creating HA automations, iOS app, conditions on actions, push-based instant sync, multiple time zones per alarm, Play Store release.
+## 10. Non-goals (v1)
+Creating HA automations, HA entities for alarms, HA Container or Core installations (no Supervisor, so no add-ons), iOS app, conditions on actions, push-based instant sync, multiple time zones per alarm, Play Store release.
 
 ## Decisions on earlier open questions
-See [../analysis/decisions.md](../analysis/decisions.md): alarms are per user (D1), dismissal timeout 60 minutes (D2), late *before* actions are skipped with a warning (D3), admins view-only (D19), away by time zone (D20), rate limit drops (D21), early dismissal (D22).
+See [../analysis/decisions.md](../analysis/decisions.md): alarms are per user (D1), dismissal timeout 60 minutes (D2), late *before* actions are skipped with a warning (D3), admins view-only (D19), away by time zone (D20), rate limit drops (D21), early dismissal (D22), two add-ons (D28), settings in add-on configuration (D30), no entities (D31), app add-on (D32).
