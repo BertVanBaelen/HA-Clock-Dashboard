@@ -48,6 +48,9 @@ Record for each run: device, Android version, app version, pass/fail and notes.
   - duplicate actions are rejected
   - snooze must be within range
 - [ ] An action "before" whose time has already passed shows the "already past" warning.
+- [ ] Alarm detail (docs/design.md): opening an alarm with actions morphs its mini timeline into the rail;
+  add an action (pick, drag, ▲▼, Place here), move one to "After dismiss", remove one, then Save.
+  Back with unsaved changes asks "Discard changes?".
 - [ ] Offline edit: save in airplane mode. The alarm shows "Not synced yet" and is sent after reconnecting.
 - [ ] Conflict:
   - Edit offline on the phone and edit the same alarm in the panel, then reconnect.

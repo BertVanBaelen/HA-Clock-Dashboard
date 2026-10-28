@@ -122,6 +122,50 @@ const en = {
   removePhone: 'Remove phone',
   awayBadge: (tz: string) => `Away (${tz})`,
   version: (v: string) => `Alarm Actions ${v}`,
+  nextLine: (when: string, inTime: string) => `Next: ${when} · in ${inTime}`,
+  noneOn: 'No alarms on',
+  units: { d: 'd', h: 'h', min: 'min' },
+  addAlarm: 'Add alarm',
+  simpleAlarm: 'Simple alarm',
+  simpleAlarmHint: 'Just a time. Add actions later if you like.',
+  withActions: 'With actions',
+  withActionsHint: 'Lights, coffee, music and more around the alarm.',
+  summaryBefore: (n: number) => `${n} before`,
+  summaryWith: (n: number) => `${n} with`,
+  summaryAfter: (n: number) => `${n} after`,
+  summaryDismiss: (n: number) => `${n} after dismiss`,
+  alarm: 'Alarm',
+  more: 'More',
+  discardTitle: 'Discard changes?',
+  discardText: 'Your changes to this alarm are not saved.',
+  discard: 'Discard',
+  snooze: 'Snooze',
+  snoozeChip: (n: number) => `Snooze ${n} min`,
+  useDefault: (n: number) => `Use default (${n} min)`,
+  addActions: 'Add actions',
+  addActionsHint:
+    'Turn on lights, start coffee or play the news before, with or after this alarm. It stays a simple alarm until you do.',
+  tapHint: 'Tap an action to move or change it',
+  whatShouldHappen: 'What should happen?',
+  aroundAlarm: 'Around the alarm',
+  readoutBefore: (n: number) => `${n} min before the alarm`,
+  readoutAt: 'Together with the alarm',
+  readoutAfter: (n: number) => `${n} min after the alarm`,
+  readoutDismissNow: 'Right when you dismiss',
+  readoutDismiss: (n: number) => `${n} min after you dismiss`,
+  runsAt: (script: string, time: string) => `${script} runs at ${time} · drag it on the timeline`,
+  earlier: '1 minute earlier',
+  later: '1 minute later',
+  placeHere: 'Place here',
+  done: 'Done',
+  relBefore: (n: number) => `−${n} min`,
+  relWith: 'with alarm',
+  relAfter: (n: number) => `+${n} min`,
+  relNow: 'right away',
+  afterYouDismiss: 'After you dismiss',
+  afterYouDismissHint: 'These run when you dismiss the alarm, on your phone or here.',
+  fixFirst: 'Fix this first:',
+  timeline: 'Alarm timeline',
 };
 
 export type Strings = typeof en;
@@ -243,6 +287,50 @@ const nl: Strings = {
   removePhone: 'Telefoon verwijderen',
   awayBadge: (tz: string) => `Weg (${tz})`,
   version: (v: string) => `Alarm Actions ${v}`,
+  nextLine: (when: string, inTime: string) => `Volgende: ${when} · over ${inTime}`,
+  noneOn: 'Geen wekkers aan',
+  units: { d: 'd', h: 'u', min: 'min' },
+  addAlarm: 'Wekker toevoegen',
+  simpleAlarm: 'Eenvoudige wekker',
+  simpleAlarmHint: 'Alleen een tijd. Voeg later acties toe als je wilt.',
+  withActions: 'Met acties',
+  withActionsHint: 'Lichten, koffie, muziek en meer rond de wekker.',
+  summaryBefore: (n: number) => `${n} voor`,
+  summaryWith: (n: number) => `${n} bij`,
+  summaryAfter: (n: number) => `${n} na`,
+  summaryDismiss: (n: number) => `${n} na uitzetten`,
+  alarm: 'Wekker',
+  more: 'Meer',
+  discardTitle: 'Wijzigingen weggooien?',
+  discardText: 'Je wijzigingen aan deze wekker zijn niet opgeslagen.',
+  discard: 'Weggooien',
+  snooze: 'Sluimeren',
+  snoozeChip: (n: number) => `Sluimeren ${n} min`,
+  useDefault: (n: number) => `Standaard gebruiken (${n} min)`,
+  addActions: 'Acties toevoegen',
+  addActionsHint:
+    'Zet lichten aan, start koffie of speel het nieuws voor, bij of na deze wekker. Tot dan blijft het een eenvoudige wekker.',
+  tapHint: 'Tik op een actie om ze te verplaatsen of te wijzigen',
+  whatShouldHappen: 'Wat moet er gebeuren?',
+  aroundAlarm: 'Rond de wekker',
+  readoutBefore: (n: number) => `${n} min voor de wekker`,
+  readoutAt: 'Samen met de wekker',
+  readoutAfter: (n: number) => `${n} min na de wekker`,
+  readoutDismissNow: 'Meteen bij het uitzetten',
+  readoutDismiss: (n: number) => `${n} min na het uitzetten`,
+  runsAt: (script: string, time: string) => `${script} loopt om ${time} · sleep ze op de tijdlijn`,
+  earlier: '1 minuut vroeger',
+  later: '1 minuut later',
+  placeHere: 'Hier plaatsen',
+  done: 'Klaar',
+  relBefore: (n: number) => `−${n} min`,
+  relWith: 'bij wekker',
+  relAfter: (n: number) => `+${n} min`,
+  relNow: 'meteen',
+  afterYouDismiss: 'Na het uitzetten',
+  afterYouDismissHint: 'Deze lopen wanneer je de wekker uitzet, op je telefoon of hier.',
+  fixFirst: 'Los dit eerst op:',
+  timeline: 'Tijdlijn van de wekker',
 };
 
 const LANGUAGES: Record<string, Strings> = { en, nl };
@@ -295,6 +383,17 @@ export function formatDateTime(iso: string, timeZone: string | null): string {
   } catch {
     return date.toLocaleString();
   }
+}
+
+/** A duration such as "7 h 12 min", "12 min" or "2 d 3 h". */
+export function formatDuration(ms: number): string {
+  const minutes = Math.max(0, Math.round(ms / 60_000));
+  const d = Math.floor(minutes / 1440);
+  const h = Math.floor((minutes % 1440) / 60);
+  const m = minutes % 60;
+  if (d > 0) return h > 0 ? `${d} ${t.units.d} ${h} ${t.units.h}` : `${d} ${t.units.d}`;
+  if (h > 0) return m > 0 ? `${h} ${t.units.h} ${m} ${t.units.min}` : `${h} ${t.units.h}`;
+  return `${m} ${t.units.min}`;
 }
 
 /** Next trigger in HA's time zone, for example "Tue 07:00". */

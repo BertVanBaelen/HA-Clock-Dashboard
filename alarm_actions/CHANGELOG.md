@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- New panel design (`docs/design.md`):
+  - Warm light and dark palette, Inter font (bundled) and a new icon.
+  - Alarm cards with a mini timeline and a "Next: … · in …" header.
+  - A "New alarm" card with *Simple alarm* / *With actions*.
+  - An alarm detail that replaces the editor popup. Actions sit on a timeline: drag them into place, with *after dismiss* actions listed below. Repeat and Snooze chips, and Save only when something changed.
+  - Opening an alarm morphs its mini timeline into the detail's timeline.
+  - The panel now follows only HA's light/dark mode, not the theme colors.
 - Fix app login on Home Assistant installs that do not use port 8123 (or use their own certificate): the add-on now asks the Supervisor for Home Assistant's port and SSL setting instead of assuming `ws://homeassistant:8123`.
 
 ## 0.2.0

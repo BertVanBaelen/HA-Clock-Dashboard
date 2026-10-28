@@ -131,14 +131,15 @@ base64 -w0 release.jks > release.jks.base64   # value for the GitHub secret
 
 ```
 app/src/main/java/alarmclock/vanbaelen/dev/
-  core/     plain Kotlin, unit-tested: schedule port, models, editor validation, sync merge,
+  core/     plain Kotlin, unit-tested: schedule port, models, editor validation, timeline geometry, sync merge,
             ring planning, report/update/version policies
   data/     Room database, encrypted token store, OAuth, API client, repository, sync engine
   alarm/    AlarmManager engine (device-protected storage, works before first unlock),
             ringing service + activity, receivers, report queue, notifications
   work/     WorkManager: periodic sync, report retry
   update/   in-app updater (download, SHA-256, PackageInstaller)
-  ui/       Compose screens: setup, alarm list, editor, conflicts, settings, health check, night display
+  ui/       Compose screens (docs/design.md): setup, alarm list + detail timeline, conflicts, settings,
+            health check, night display
 ```
 
 See [TESTING.md](TESTING.md) for the manual device test list.

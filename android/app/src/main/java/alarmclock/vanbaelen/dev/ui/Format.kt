@@ -1,6 +1,7 @@
 package alarmclock.vanbaelen.dev.ui
 
 import alarmclock.vanbaelen.dev.R
+import alarmclock.vanbaelen.dev.core.ActionSummary
 import alarmclock.vanbaelen.dev.core.DraftError
 import alarmclock.vanbaelen.dev.core.Limits
 import alarmclock.vanbaelen.dev.core.Timing
@@ -45,6 +46,42 @@ object Format {
         val far = epochMs - System.currentTimeMillis() > 6 * 86_400_000L
         val day = DateTimeFormatter.ofPattern(if (far) "EEE d MMM" else "EEE", locale(context)).format(at)
         return "$day ${time(context, at.toLocalTime())}"
+    }
+
+    /** Time left until [epochMs], rounded up to the minute: "7 h 12 min", "2 d 3 h". */
+    fun until(context: Context, epochMs: Long, now: Long = System.currentTimeMillis()): String {
+        val minutes = ((epochMs - now + 59_999L) / 60_000L).coerceAtLeast(0L)
+        val hours = minutes / 60
+        return when {
+            hours >= 24 -> context.getString(R.string.dur_d_h, (hours / 24).toInt(), (hours % 24).toInt())
+            hours > 0 -> context.getString(R.string.dur_h_min, hours.toInt(), (minutes % 60).toInt())
+            else -> context.getString(R.string.dur_min, minutes.toInt())
+        }
+    }
+
+    /** The alarm time [hhmm] shifted by [offset] minutes, for timeline labels. */
+    fun shifted(context: Context, hhmm: String, offset: Int): String {
+        val t = runCatching { LocalTime.parse(hhmm) }.getOrNull() ?: return hhmm
+        return time(context, t.plusMinutes(offset.toLong()))
+    }
+
+    /** "2 before · 1 with · 1 after · 1 after dismiss", or "Simple alarm". */
+    fun summary(context: Context, s: ActionSummary): String {
+        if (s.isEmpty) return context.getString(R.string.simple_alarm)
+        return listOfNotNull(
+            s.before.takeIf { it > 0 }?.let { context.getString(R.string.summary_before, it) },
+            s.with.takeIf { it > 0 }?.let { context.getString(R.string.summary_with, it) },
+            s.after.takeIf { it > 0 }?.let { context.getString(R.string.summary_after, it) },
+            s.afterDismiss.takeIf { it > 0 }?.let { context.getString(R.string.summary_after_dismiss, it) },
+        ).joinToString(" · ")
+    }
+
+    /** Relative label of an action card: "−30 min", "with alarm", "+5 min", "right away". */
+    fun relative(context: Context, signedOffset: Int?, delay: Int?): String = when {
+        signedOffset == null -> if ((delay ?: 0) == 0) context.getString(R.string.rel_right_away) else context.getString(R.string.rel_after, delay)
+        signedOffset < 0 -> context.getString(R.string.rel_before, -signedOffset)
+        signedOffset == 0 -> context.getString(R.string.rel_at)
+        else -> context.getString(R.string.rel_after, signedOffset)
     }
 
     fun ago(context: Context, epochMs: Long): String =

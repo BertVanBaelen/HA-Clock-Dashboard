@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FF1E3A5F</color>
+    <color name="ic_launcher_background">#FFF5F5F2</color>
+    <!-- Window background = the `bg` token (docs/design.md), so screens open without a flash. -->
+    <color name="window_background">#FFF5F5F2</color>
 </resources>

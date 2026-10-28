@@ -33,7 +33,12 @@ export interface Draft {
 }
 
 let counter = 0;
-const newKey = () => `k${++counter}`;
+export const newKey = () => `k${++counter}`;
+
+/** True when saving `a` would send the same alarm as `b` (used to show Save only for changes). */
+export function sameDraft(a: Draft, b: Draft): boolean {
+  return JSON.stringify(draftBody(a)) === JSON.stringify(draftBody(b));
+}
 
 export function emptyDraft(): Draft {
   return {

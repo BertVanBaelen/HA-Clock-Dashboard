@@ -6,7 +6,6 @@ import alarmclock.vanbaelen.dev.ui.AppTheme
 import alarmclock.vanbaelen.dev.ui.MainViewModel
 import alarmclock.vanbaelen.dev.ui.screens.AlarmListScreen
 import alarmclock.vanbaelen.dev.ui.screens.ConflictScreen
-import alarmclock.vanbaelen.dev.ui.screens.EditorScreen
 import alarmclock.vanbaelen.dev.ui.screens.HealthScreen
 import alarmclock.vanbaelen.dev.ui.screens.NightScreen
 import alarmclock.vanbaelen.dev.ui.screens.SettingsScreen
@@ -15,7 +14,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -35,13 +33,11 @@ object Routes {
     const val SETUP = "setup"
     const val GUIDE = "guide"
     const val LIST = "list"
-    const val EDITOR = "editor?id={id}"
     const val CONFLICT = "conflict/{seq}"
     const val SETTINGS = "settings"
     const val HEALTH = "health"
     const val NIGHT = "night"
 
-    fun editor(id: String? = null) = if (id == null) "editor" else "editor?id=${Uri.encode(id)}"
     fun conflict(seq: Long) = "conflict/$seq"
 }
 
@@ -86,12 +82,6 @@ class MainActivity : ComponentActivity() {
                         })
                     }
                     composable(Routes.LIST) { AlarmListScreen(vm, controller) }
-                    composable(Routes.EDITOR, arguments = listOf(navArgument("id") { type = NavType.StringType; nullable = true })) { entry ->
-                        EditorScreen(entry.arguments?.getString("id"), onDone = { msg ->
-                            msg?.let(vm::message)
-                            controller.popBackStack()
-                        })
-                    }
                     composable(Routes.CONFLICT, arguments = listOf(navArgument("seq") { type = NavType.LongType })) { entry ->
                         ConflictScreen(entry.arguments?.getLong("seq") ?: 0L, onDone = { controller.popBackStack() })
                     }

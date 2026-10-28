@@ -1,29 +1,9 @@
 /**
- * Theme and language follow Home Assistant (TR-UI-05). The panel runs in a same-origin iframe, so
- * it copies HA's theme variables from the parent document. Outside HA (or when the parent is not
- * reachable) the defaults in styles.css apply, with `prefers-color-scheme` for dark mode.
+ * Light/dark mode and language follow Home Assistant (TR-UI-05); the colors are the panel's own
+ * (docs/design.md). The panel runs in a same-origin iframe, so it reads HA's dark-mode setting and
+ * language from the parent document. Outside HA (or when the parent is not reachable)
+ * `prefers-color-scheme` and the browser language apply.
  */
-
-const THEME_VARIABLES = [
-  '--primary-color',
-  '--accent-color',
-  '--primary-text-color',
-  '--secondary-text-color',
-  '--disabled-text-color',
-  '--text-primary-color',
-  '--primary-background-color',
-  '--secondary-background-color',
-  '--card-background-color',
-  '--ha-card-background',
-  '--divider-color',
-  '--error-color',
-  '--warning-color',
-  '--success-color',
-  '--info-color',
-  '--switch-checked-color',
-  '--input-fill-color',
-  '--ha-card-border-radius',
-];
 
 interface HassLike {
   language?: string;
@@ -57,12 +37,6 @@ export function syncTheme(): void {
   const root = document.documentElement;
   if (!doc) return;
   try {
-    const style = getComputedStyle(doc.documentElement);
-    for (const name of THEME_VARIABLES) {
-      const value = style.getPropertyValue(name).trim();
-      if (value) root.style.setProperty(name, value);
-      else root.style.removeProperty(name);
-    }
     const h = hass(doc);
     const dark = h?.themes?.darkMode;
     if (dark !== undefined) {
@@ -79,7 +53,7 @@ export function syncTheme(): void {
   }
 }
 
-/** Keeps following theme changes in HA (theme picker, dark mode switch). */
+/** Keeps following changes in HA (dark mode switch, language). */
 export function watchTheme(): void {
   syncTheme();
   const doc = parentDocument();

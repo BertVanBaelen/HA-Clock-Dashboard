@@ -59,11 +59,11 @@ IDs are stable; reference them in issues and PRs.
 | ID | Requirement | Prio |
 |---|---|---|
 | FR-UI-01 | Installing the dashboard add-on adds a sidebar panel "Alarms", visible to all users (also non-admins), listing the user's alarms with toggle, time, days, next trigger | M |
-| FR-UI-02 | Create/edit dialog for alarm fields and action list | M |
+| FR-UI-02 | Alarm detail for the alarm fields, with its actions on a timeline ([design](../docs/design.md)) | M |
 | FR-UI-03 | Action picker shows script name and icon | M |
 | FR-UI-04 | History view shows recent executions per alarm | S |
 | FR-UI-05 | Works on desktop and mobile (HA Companion App on iOS and Android) | M |
-| FR-UI-06 | Follows the HA theme (light/dark) | S |
+| FR-UI-06 | Follows HA's light/dark mode, with the colors of the [design](../docs/design.md) | S |
 | FR-UI-07 | An "Install app" tab lets the user download the Android app. It appears only when the app add-on is installed and running (section 8) | S |
 | FR-UI-08 | Translations: English and Dutch; the panel follows the language of the HA user profile, English for other languages | M |
 | FR-UI-09 | When an edit causes a *before* action to be skipped for the next occurrence, the UI shows a warning before saving (FR-EXE-09) | M |

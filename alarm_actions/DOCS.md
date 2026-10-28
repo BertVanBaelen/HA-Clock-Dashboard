@@ -21,23 +21,26 @@ and add the label `alarm_action` (create it the first time). Scripts are started
 
 ## Using the panel
 
-- **New alarm**: set the time, an optional label and the days. Select no days for a one-time
-  alarm. Snooze is set in the Android app; otherwise the default from the add-on options applies.
-- **Editing** an alarm switches it on: saving activates it, unless you turn it off in the editor.
-- **Actions**: pick a script, choose *before*, *at* or *after* the alarm, or *after dismiss*, and
-  the number of minutes. *After dismiss* actions run when the alarm is dismissed (on the phone or
-  in the panel), plus an optional delay; when nobody dismisses the alarm within
-  `dismiss_timeout_minutes` they do not run. Each action can be switched off on its own; ▶ runs a
-  saved action right away to test it.
+- **New alarm** (＋): choose *Simple alarm* or *With actions*. Tap the big time to change it, and
+  the name or the **Repeat** and **Snooze** chips to change those. Select no days for a one-time
+  alarm. Without a snooze of its own, the default from the add-on options applies.
+- Tap an alarm to open it. Changes are kept until you tap **Save**; leaving with unsaved changes
+  asks first. Saving an alarm switches it on. **⋯** duplicates or deletes it.
+- **Actions** sit on a timeline around the alarm. **Add action**, pick a script, then drag it on
+  the timeline (5-minute steps) or use ▲ ▼ (1 minute), and tap **Place here**. Tap an action to
+  move it, switch it off, remove it or run it right away (**Run now**, for saved actions).
+  *After dismiss* actions run when the alarm is dismissed (on the phone or in the panel), plus an
+  optional delay. They are listed below the timeline. When nobody dismisses the alarm within
+  `dismiss_timeout_minutes`, they do not run.
 - If a *before* action is already past for the next alarm (for example 20 minutes before an alarm
-  in 5 minutes), the editor warns you; it runs from the following alarm on.
+  in 5 minutes), it is marked on the timeline. It runs from the following alarm on.
 - Actions whose script was deleted or lost its label are marked **Unavailable** and are skipped.
 - **Skip next** (⏭) skips only the next ring of a repeating alarm; tap again to undo.
 - **Dismiss** (🔕) appears from one hour before an alarm until it is dismissed or times out. Before
   the alarm time it is an *early dismissal*: the *before*, *at* and *after* actions of that ring are
   skipped, the phone does not ring, and the *after dismiss* actions start right away (plus delay).
 - If an alarm was changed elsewhere (another phone or tab), saving asks you to reload it first.
-- The panel follows your Home Assistant theme (light/dark) and works in the Companion App.
+- The panel follows the light/dark mode of Home Assistant and works in the Companion App.
 
 ## Users and permissions
 

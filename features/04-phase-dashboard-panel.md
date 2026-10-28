@@ -8,13 +8,13 @@
 |---|---|---|---|
 | 4.1 | Ingress panel, frontend build stage in the Dockerfile, static files served by the add-on with relative URLs | TR-UI-01, 03, 04, TR-API-10 | "Alarms" appears in the sidebar for admins and non-admins |
 | 4.2 | Alarm list with toggle, time, days, next trigger | FR-UI-01, FR-ALM-07 | List renders live data |
-| 4.3 | Create/edit dialog (time, label, days, one-time); opening an alarm to edit switches it on, so saving activates it | FR-UI-02, FR-ALM-01, 02 | Alarm saved via API; an edited disabled alarm is saved enabled |
+| 4.3 | Alarm detail with timeline (time, label, days, one-time, actions; [design](../docs/design.md)); opening an alarm to edit switches it on, so saving activates it | FR-UI-02, FR-ALM-01, 02 | Alarm saved via API; an edited disabled alarm is saved enabled |
 | 4.4 | Action editor: picker, timing, offset | FR-UI-02, 03, FR-ACT-02..04 | Actions saved with correct timing |
 | 4.5 | Per-action enable/disable and duplicates | FR-ACT-05, 06 | Works in UI |
 | 4.6 | Skip next / undo skip | FR-ALM-05 | Button with visual state |
 | 4.7 | Unavailable-script warning | FR-ACT-07 | Warning shown for broken actions |
 | 4.8 | Conflict handling (409) | TR-API-02 | User is prompted to refresh |
-| 4.9 | Theming (HA CSS variables and language read from the parent frame, `prefers-color-scheme` fallback) and responsive layout | FR-UI-05, 06, TR-UI-05 | Verified in light/dark, desktop and Companion App |
+| 4.9 | Theming (design tokens; HA dark mode and language read from the parent frame, `prefers-color-scheme` fallback) and responsive layout | FR-UI-05, 06, TR-UI-05 | Verified in light/dark, desktop and Companion App |
 | 4.10 | ~~Settings view~~ dropped: settings are only shown on the add-on Configuration page; the panel shows its version in the footer | FR-SET-01, 02, [Settings](../analysis/objects/settings.md) | Values on the Configuration tab |
 | 4.11 | Alarm duplication | FR-ALM-08 | *Could have* |
 | 4.12 | Warning in the editor when a *before* action will be skipped | FR-UI-09, FR-EXE-09 | Warning shown before save |

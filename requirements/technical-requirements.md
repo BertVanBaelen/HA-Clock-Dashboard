@@ -169,7 +169,7 @@ Served by the dashboard add-on on two listeners with the same routes and the sam
 | TR-UI-02 | Implemented in **React 19 + TypeScript**, bundled with **Vite** ([Dashboard add-on](../analysis/components/dashboard-addon.md)) |
 | TR-UI-03 | The bundle is built in a Node stage of the multi-stage `Dockerfile`, so users need no build tooling |
 | TR-UI-04 | The panel calls the add-on API with relative URLs; the ingress session cookie provides the login |
-| TR-UI-05 | Theme and language follow HA: the panel reads HA's theme CSS variables and language from the parent frame (same origin), with `prefers-color-scheme` as fallback |
+| TR-UI-05 | Light/dark mode and language follow HA: the panel reads HA's dark-mode setting and language from the parent frame (same origin), with `prefers-color-scheme` as fallback. Colors, the bundled Inter font and the motion come from [`docs/design.md`](../docs/design.md) |
 | TR-UI-06 | The panel shows an "Install app" tab when `GET /app/info` reports the app add-on is installed and running |
 | TR-UI-07 | No `innerHTML`/`unsafeHTML` with user data, no third-party requests (SEC-07) |
 

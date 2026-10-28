@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed-icon layer: the launcher art as one colour, with the hands cut out of the sun. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="18"
+        android:translateY="18"
+        android:scaleX="0.72"
+        android:scaleY="0.72">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M30,62 A20,20 0 0,1 70,62 Z M48.5,47 A1.5,1.5 0 0,1 51.5,47 L51.5,61 A1.5,1.5 0 0,1 49.003,62.121 L40.003,54.121 A1.5,1.5 0 0,1 41.997,51.879 L48.5,57.66 Z" />
+        <path
+            android:pathData="M16,62 H84"
+            android:strokeWidth="3"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeLineCap="round" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M17,62 A4,4 0 1,0 25,62 A4,4 0 1,0 17,62 Z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M75,62 A4,4 0 1,0 83,62 A4,4 0 1,0 75,62 Z" />
+        <group android:translateX="32.6" android:translateY="41.5" android:rotation="-40">
+            <path android:fillColor="#FFFFFFFF" android:pathData="M-7.5,0 A7.5,7.5 0 0,1 7.5,0 Z" />
+        </group>
+        <group android:translateX="67.4" android:translateY="41.5" android:rotation="40">
+            <path android:fillColor="#FFFFFFFF" android:pathData="M-7.5,0 A7.5,7.5 0 0,1 7.5,0 Z" />
+        </group>
+    </group>
+</vector>

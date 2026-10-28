@@ -1,36 +1,146 @@
 package alarmclock.vanbaelen.dev.ui
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 
-private val Light = lightColorScheme(
-    primary = Color(0xFF3F51B5),
-    secondary = Color(0xFF5C6BC0),
-    tertiary = Color(0xFFFF8F00),
+/** Design tokens shared with the panel (docs/design.md). */
+@Immutable
+data class AppColors(
+    val dark: Boolean,
+    val bg: Color,
+    val surface: Color,
+    val ink: Color,
+    val muted: Color,
+    val line: Color,
+    val soft: Color,
+    val accent: Color,
+    val onAccent: Color,
+    val accentSoft: Color,
+    val off: Color,
+    val knob: Color,
+    val danger: Color,
+    val warn: Color,
 )
 
-private val Dark = darkColorScheme(
-    primary = Color(0xFFB8C3FF),
-    secondary = Color(0xFFC0C6E8),
-    tertiary = Color(0xFFFFB870),
+val DarkTokens = AppColors(
+    dark = true,
+    bg = Color(0xFF0D0D0F),
+    surface = Color(0xFF17171A),
+    ink = Color(0xFFF1F0EC),
+    muted = Color(0xFFA09FA6),
+    line = Color(0xFF2A2A2F),
+    soft = Color(0xFF1F1F23),
+    accent = Color(0xFFFFAD5C),
+    onAccent = Color(0xFF1C1005),
+    accentSoft = Color(0xFF3A2A1B),
+    off = Color(0xFF38383E),
+    knob = Color(0xFF9A99A0),
+    danger = Color(0xFFFF8A7A),
+    warn = Color(0xFFE8B04A),
 )
 
-/** Material 3 theme; follows the system dark mode and uses dynamic colors on Android 12+. */
+val LightTokens = AppColors(
+    dark = false,
+    bg = Color(0xFFF5F5F2),
+    surface = Color(0xFFFFFFFF),
+    ink = Color(0xFF151515),
+    muted = Color(0xFF5C5C58),
+    line = Color(0xFFE2E1DB),
+    soft = Color(0xFFEAE9E4),
+    accent = Color(0xFFB4520A),
+    onAccent = Color(0xFFFFFFFF),
+    accentSoft = Color(0xFFF6E3D2),
+    off = Color(0xFFD3D2CC),
+    knob = Color(0xFFFFFFFF),
+    danger = Color(0xFFB3261E),
+    warn = Color(0xFF8A5A00),
+)
+
+val LocalAppColors = staticCompositionLocalOf { LightTokens }
+
+/** The design tokens of the current theme. */
+val tokens: AppColors
+    @Composable get() = LocalAppColors.current
+
+/** Text roles of the design (docs/design.md, Type); all with tabular figures. */
+object AppType {
+    private val base = TextStyle(fontFeatureSettings = "tnum")
+    val screenTitle = base.copy(fontSize = 32.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.02).em)
+    val listTime = base.copy(fontSize = 44.sp, fontWeight = FontWeight.Light, letterSpacing = (-0.035).em, lineHeight = 44.sp)
+    val detailTime = base.copy(fontSize = 56.sp, fontWeight = FontWeight.Light, letterSpacing = (-0.045).em, lineHeight = 59.sp)
+    val body = base.copy(fontSize = 15.sp, lineHeight = 21.sp)
+    val bodyStrong = body.copy(fontWeight = FontWeight.SemiBold)
+    val secondary = base.copy(fontSize = 13.sp, lineHeight = 19.sp)
+    val label = base.copy(fontSize = 14.sp, lineHeight = 20.sp)
+    val small = base.copy(fontSize = 12.sp, lineHeight = 16.sp)
+}
+
+private fun TextStyle.tnum() = copy(fontFeatureSettings = "tnum")
+
+private val Base = Typography()
+private val AppTypography = Base.copy(
+    displayLarge = Base.displayLarge.tnum(),
+    displayMedium = Base.displayMedium.tnum(),
+    displaySmall = Base.displaySmall.tnum(),
+    headlineLarge = Base.headlineLarge.tnum(),
+    headlineMedium = Base.headlineMedium.tnum(),
+    headlineSmall = Base.headlineSmall.tnum(),
+    titleLarge = Base.titleLarge.tnum(),
+    titleMedium = Base.titleMedium.tnum(),
+    titleSmall = Base.titleSmall.tnum(),
+    bodyLarge = Base.bodyLarge.tnum(),
+    bodyMedium = Base.bodyMedium.tnum(),
+    bodySmall = Base.bodySmall.tnum(),
+    labelLarge = Base.labelLarge.tnum(),
+    labelMedium = Base.labelMedium.tnum(),
+    labelSmall = Base.labelSmall.tnum(),
+)
+
+private fun scheme(t: AppColors) = if (t.dark) {
+    darkColorScheme(
+        primary = t.accent, onPrimary = t.onAccent, primaryContainer = t.accentSoft, onPrimaryContainer = t.ink,
+        secondary = t.ink, onSecondary = t.bg, secondaryContainer = t.soft, onSecondaryContainer = t.ink,
+        tertiary = t.warn, onTertiary = t.bg, tertiaryContainer = t.soft, onTertiaryContainer = t.ink,
+        background = t.bg, onBackground = t.ink, surface = t.bg, onSurface = t.ink,
+        surfaceVariant = t.soft, onSurfaceVariant = t.muted, surfaceTint = Color.Transparent,
+        inverseSurface = t.ink, inverseOnSurface = t.bg, inversePrimary = t.accent,
+        error = t.danger, onError = t.bg, errorContainer = t.soft, onErrorContainer = t.ink,
+        outline = t.line, outlineVariant = t.line,
+        surfaceContainerLowest = t.bg, surfaceContainerLow = t.surface, surfaceContainer = t.surface,
+        surfaceContainerHigh = t.soft, surfaceContainerHighest = t.soft,
+    )
+} else {
+    lightColorScheme(
+        primary = t.accent, onPrimary = t.onAccent, primaryContainer = t.accentSoft, onPrimaryContainer = t.ink,
+        secondary = t.ink, onSecondary = t.bg, secondaryContainer = t.soft, onSecondaryContainer = t.ink,
+        tertiary = t.warn, onTertiary = t.bg, tertiaryContainer = t.soft, onTertiaryContainer = t.ink,
+        background = t.bg, onBackground = t.ink, surface = t.bg, onSurface = t.ink,
+        surfaceVariant = t.soft, onSurfaceVariant = t.muted, surfaceTint = Color.Transparent,
+        inverseSurface = t.ink, inverseOnSurface = t.bg, inversePrimary = t.accent,
+        error = t.danger, onError = t.surface, errorContainer = t.soft, onErrorContainer = t.ink,
+        outline = t.line, outlineVariant = t.line,
+        surfaceContainerLowest = t.surface, surfaceContainerLow = t.surface, surfaceContainer = t.surface,
+        surfaceContainerHigh = t.surface, surfaceContainerHighest = t.soft,
+    )
+}
+
+/** The app's own palette (docs/design.md); follows the system dark mode, no dynamic colors. */
 @Composable
 fun AppTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    val context = LocalContext.current
-    val colors = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        dark -> Dark
-        else -> Light
+    val t = if (dark) DarkTokens else LightTokens
+    CompositionLocalProvider(LocalAppColors provides t) {
+        MaterialTheme(colorScheme = scheme(t), typography = AppTypography, content = content)
     }
-    MaterialTheme(colorScheme = colors, content = content)
 }

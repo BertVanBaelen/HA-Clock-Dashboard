@@ -1,11 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Notification icon: white silhouette of the launcher art (sun with hands, horizon, bells). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24"
     android:tint="#FFFFFFFF">
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M22,5.72l-4.6,-3.86 -1.29,1.53 4.6,3.86L22,5.72zM7.88,3.39L6.6,1.86 2,5.71l1.29,1.53 4.59,-3.85zM12.5,8L11,8v6l4.75,2.85 0.75,-1.23 -4,-2.37L12.5,8zM12,4c-4.97,0 -9,4.03 -9,9s4.02,9 9,9c4.97,0 9,-4.03 9,-9s-4.03,-9 -9,-9zM12,20c-3.87,0 -7,-3.13 -7,-7s3.13,-7 7,-7 7,3.13 7,7 -3.13,7 -7,7z" />
+    <group
+        android:translateX="-4.18"
+        android:translateY="-4.01"
+        android:scaleX="0.3235"
+        android:scaleY="0.3235">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M30,62 A20,20 0 0,1 70,62 Z M48.5,47 A1.5,1.5 0 0,1 51.5,47 L51.5,61 A1.5,1.5 0 0,1 49.003,62.121 L40.003,54.121 A1.5,1.5 0 0,1 41.997,51.879 L48.5,57.66 Z" />
+        <path
+            android:pathData="M16,62 H84"
+            android:strokeWidth="4"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeLineCap="round" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M17,62 A4,4 0 1,0 25,62 A4,4 0 1,0 17,62 Z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M75,62 A4,4 0 1,0 83,62 A4,4 0 1,0 75,62 Z" />
+        <group android:translateX="32.6" android:translateY="41.5" android:rotation="-40">
+            <path android:fillColor="#FFFFFFFF" android:pathData="M-7.5,0 A7.5,7.5 0 0,1 7.5,0 Z" />
+        </group>
+        <group android:translateX="67.4" android:translateY="41.5" android:rotation="40">
+            <path android:fillColor="#FFFFFFFF" android:pathData="M-7.5,0 A7.5,7.5 0 0,1 7.5,0 Z" />
+        </group>
+    </group>
 </vector>
