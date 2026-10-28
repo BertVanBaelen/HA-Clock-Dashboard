@@ -658,10 +658,13 @@ private fun SimpleView(
                 key(inline) { Rise(Modifier.padding(vertical = 8.dp)) { InlineEditorView(field, draft, defaultSnooze, vm) } }
             }
         }
-        SimpleRow(stringResource(R.string.sound), soundLabel, pickSound)
-        SimpleRow(stringResource(R.string.vibrate), "", toggleVibrate) {
-            AppSwitch(vibrate, { toggleVibrate() }, stringResource(R.string.vibrate))
-        }
+        SimpleRow(stringResource(R.string.sound), soundLabel, onClick = pickSound)
+        SimpleRow(
+            stringResource(R.string.vibrate),
+            "",
+            trailing = { AppSwitch(vibrate, { toggleVibrate() }, stringResource(R.string.vibrate)) },
+            onClick = toggleVibrate,
+        )
 
         val shape = RoundedCornerShape(18.dp)
         Column(
@@ -690,7 +693,7 @@ private fun SimpleView(
 }
 
 @Composable
-private fun SimpleRow(title: String, value: String, onClick: () -> Unit, trailing: (@Composable () -> Unit)? = null) {
+private fun SimpleRow(title: String, value: String, trailing: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
     val t = tokens
     Row(
         Modifier
