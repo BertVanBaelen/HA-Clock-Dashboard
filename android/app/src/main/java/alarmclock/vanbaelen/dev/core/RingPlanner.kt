@@ -23,6 +23,8 @@ data class RingSpec(
     val snoozeMinutes: Int,
     val soundUri: String? = null,
     val volumeRamp: Boolean = false,
+    /** Vibrate while ringing (set on this phone). */
+    val vibrate: Boolean = true,
     /** HA time zone; null when unknown (then the phone's zone is used). */
     val haTimeZone: String? = null,
     /** Scheduled time (epoch ms) of an occurrence the user already dismissed early elsewhere. */
@@ -45,6 +47,7 @@ data class PlannedRing(
     val soundUri: String? = null,
     val volumeRamp: Boolean = false,
     val snooze: Boolean = false,
+    val vibrate: Boolean = true,
 )
 
 object RingPlanner {
@@ -82,6 +85,7 @@ object RingPlanner {
             snoozeMinutes = spec.snoozeMinutes,
             soundUri = spec.soundUri,
             volumeRamp = spec.volumeRamp,
+            vibrate = spec.vibrate,
         )
     }
 

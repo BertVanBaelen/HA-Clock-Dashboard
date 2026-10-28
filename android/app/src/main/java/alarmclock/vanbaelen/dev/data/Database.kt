@@ -1,6 +1,7 @@
 package alarmclock.vanbaelen.dev.data
 
 import android.content.Context
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -12,6 +13,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
 import androidx.room.Upsert
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 /** Server copy of one alarm (the API JSON, so new server fields survive a round trip). */
@@ -60,9 +63,13 @@ data class PendingEditRow(
     val serverJson: String? = null,
 )
 
-/** Alarm sound chosen on this phone; never sent to the server. */
+/** Alarm sound and vibration chosen on this phone; never sent to the server. */
 @Entity(tableName = "alarm_sounds")
-data class AlarmSoundRow(@PrimaryKey val alarmId: String, val soundUri: String?)
+data class AlarmSoundRow(
+    @PrimaryKey val alarmId: String,
+    val soundUri: String?,
+    @ColumnInfo(defaultValue = "1") val vibrate: Boolean = true,
+)
 
 @Entity(tableName = "missed_alarms")
 data class MissedAlarmRow(
@@ -190,14 +197,21 @@ interface AppDao {
         AlarmRow::class, SyncStateRow::class, PendingReportRow::class, PendingEditRow::class,
         AlarmSoundRow::class, MissedAlarmRow::class, ScriptRow::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): AppDao
 
     companion object {
+        /** 1 → 2: per-alarm vibration (on by default). */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE alarm_sounds ADD COLUMN vibrate INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
         fun create(context: Context): AppDatabase =
-            Room.databaseBuilder(context, AppDatabase::class.java, "alarm_actions.db").build()
+            Room.databaseBuilder(context, AppDatabase::class.java, "alarm_actions.db").addMigrations(MIGRATION_1_2).build()
     }
 }

@@ -541,7 +541,8 @@ private fun AlarmCard(item: AlarmItem, vm: MainViewModel, anchors: MorphAnchors,
                 )
             }
             Text(
-                "${Format.days(context, alarm.days)} · ${Format.summary(context, ActionSummary.of(alarm.actions))}",
+                "${Format.days(context, alarm.days)} · ${Format.summary(context, ActionSummary.of(alarm.actions))}" +
+                    if (item.vibrate) "" else " · " + stringResource(R.string.no_vibration),
                 style = AppType.secondary,
                 color = t.muted,
                 modifier = Modifier.padding(top = 6.dp),

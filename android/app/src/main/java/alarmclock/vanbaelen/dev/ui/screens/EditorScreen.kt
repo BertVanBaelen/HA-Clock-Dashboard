@@ -135,6 +135,9 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         private set
     val sound = MutableStateFlow<String?>(null)
     val baseSound = MutableStateFlow<String?>(null)
+    /** Vibrate while ringing; kept on this phone like the sound. */
+    val vibrate = MutableStateFlow(true)
+    val baseVibrate = MutableStateFlow(true)
     val mode = MutableStateFlow(DetailMode.VIEW)
     val placing = MutableStateFlow<Placing?>(null)
     val inline = MutableStateFlow<InlineEditor?>(null)
@@ -160,6 +163,8 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         base.value = d
         sound.value = null
         baseSound.value = null
+        vibrate.value = true
+        baseVibrate.value = true
         errors.value = emptyMap()
         saving.value = false
         conflict.value = false
@@ -171,10 +176,12 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         isOpen.value = true
         viewModelScope.launch {
             if (alarm != null) {
-                val s = app.db.dao().sounds().firstOrNull { it.alarmId == alarm.id }?.soundUri
+                val local = app.db.dao().sounds().firstOrNull { it.alarmId == alarm.id }
                 if (current != session) return@launch
-                sound.value = s
-                baseSound.value = s
+                sound.value = local?.soundUri
+                baseSound.value = local?.soundUri
+                vibrate.value = local?.vibrate ?: true
+                baseVibrate.value = vibrate.value
             }
             loadingScripts.value = true
             val problem = app.repository.refreshScripts()
@@ -298,7 +305,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private suspend fun saveSound(alarmId: String) {
-        app.repository.setSound(alarmId, sound.value)
+        app.repository.setLocal(alarmId, sound.value, vibrate.value)
     }
 
     fun delete(onDone: (String?) -> Unit, onError: (String) -> Unit) {
@@ -349,6 +356,8 @@ fun AlarmDetail(
     val base by vm.base.collectAsState()
     val sound by vm.sound.collectAsState()
     val baseSound by vm.baseSound.collectAsState()
+    val vibrate by vm.vibrate.collectAsState()
+    val baseVibrate by vm.baseVibrate.collectAsState()
     val mode by vm.mode.collectAsState()
     val placing by vm.placing.collectAsState()
     val inline by vm.inline.collectAsState()
@@ -388,7 +397,8 @@ fun AlarmDetail(
     }
 
     val isNew = draft.id == null
-    val changed = draft != base || sound != baseSound
+    val changed = draft != base || sound != baseSound || vibrate != baseVibrate
+    val toggleVibrate = { vm.vibrate.value = !vibrate }
     val back: () -> Unit = {
         when {
             mode != DetailMode.VIEW -> vm.cancelMode()
@@ -475,6 +485,12 @@ fun AlarmDetail(
                     Chip(days, { vm.toggleInline(DetailField.REPEAT, false) }, icon = AppIcons.repeat, selected = inline == InlineEditor(DetailField.REPEAT, false))
                     Chip(snoozeLabel, { vm.toggleInline(DetailField.SNOOZE, false) }, icon = AppIcons.snooze, selected = inline == InlineEditor(DetailField.SNOOZE, false))
                     Chip(soundLabel, pickSound, icon = AppIcons.sound)
+                    Chip(
+                        stringResource(if (vibrate) R.string.vibrate else R.string.no_vibration),
+                        toggleVibrate,
+                        icon = if (vibrate) AppIcons.vibrate else AppIcons.vibrateOff,
+                        selected = vibrate,
+                    )
                 }
                 inline?.takeIf { !it.inRows }?.let { open ->
                     key(open) { Rise { InlineEditorView(open.field, draft, state.defaultSnooze, vm) } }
@@ -489,7 +505,7 @@ fun AlarmDetail(
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (mode == DetailMode.VIEW && draft.actions.isEmpty()) {
                     Rise(Modifier.fillMaxSize()) {
-                        SimpleView(draft, inline, days, snoozeLabel, soundLabel, state.defaultSnooze, vm, pickSound)
+                        SimpleView(draft, inline, days, snoozeLabel, soundLabel, state.defaultSnooze, vm, pickSound, vibrate, toggleVibrate)
                     }
                 } else {
                     TimelineBody(
@@ -626,6 +642,8 @@ private fun SimpleView(
     defaultSnooze: Int,
     vm: EditorViewModel,
     pickSound: () -> Unit,
+    vibrate: Boolean,
+    toggleVibrate: () -> Unit,
 ) {
     val t = tokens
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 32.dp)) {
@@ -641,6 +659,9 @@ private fun SimpleView(
             }
         }
         SimpleRow(stringResource(R.string.sound), soundLabel, pickSound)
+        SimpleRow(stringResource(R.string.vibrate), "", toggleVibrate) {
+            AppSwitch(vibrate, { toggleVibrate() }, stringResource(R.string.vibrate))
+        }
 
         val shape = RoundedCornerShape(18.dp)
         Column(
@@ -669,7 +690,7 @@ private fun SimpleView(
 }
 
 @Composable
-private fun SimpleRow(title: String, value: String, onClick: () -> Unit) {
+private fun SimpleRow(title: String, value: String, onClick: () -> Unit, trailing: (@Composable () -> Unit)? = null) {
     val t = tokens
     Row(
         Modifier
@@ -682,6 +703,7 @@ private fun SimpleRow(title: String, value: String, onClick: () -> Unit) {
         Text(title, style = AppType.body, color = t.ink)
         Spacer(Modifier.width(16.dp).weight(1f))
         Text(value, style = AppType.body, color = t.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        trailing?.invoke()
     }
 }
 

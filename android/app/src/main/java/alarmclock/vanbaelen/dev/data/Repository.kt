@@ -99,6 +99,8 @@ class Repository(private val app: App) {
     val edits: Flow<List<PendingEditRow>> = app.db.dao().editsFlow()
     val missed: Flow<List<MissedAlarmRow>> = app.db.dao().missedFlow()
     val sounds: Flow<Map<String, String?>> = app.db.dao().soundsFlow().map { rows -> rows.associate { it.alarmId to it.soundUri } }
+    /** Alarms set not to vibrate on this phone. */
+    val silentVibration: Flow<Set<String>> = app.db.dao().soundsFlow().map { rows -> rows.filter { !it.vibrate }.map { it.alarmId }.toSet() }
     val scripts: Flow<List<ScriptRow>> = app.db.dao().scriptsFlow()
     val pendingReports: Flow<Int> = app.db.dao().reportCountFlow()
 
@@ -111,7 +113,7 @@ class Repository(private val app: App) {
      */
     suspend fun rebuildEngine() {
         val state = dao.syncState() ?: SyncStateRow()
-        val sounds = dao.sounds().associate { it.alarmId to it.soundUri }
+        val local = dao.sounds().associateBy { it.alarmId }
         val settings = app.prefs.settings.value
         val zone = ZoneId.systemDefault()
         val now = Instant.now()
@@ -136,7 +138,8 @@ class Repository(private val app: App) {
                 enabled = alarm.enabled,
                 skippedDate = skippedDate,
                 snoozeMinutes = alarm.snoozeMinutes ?: state.defaultSnooze,
-                soundUri = sounds[alarm.id] ?: settings.defaultSoundUri,
+                soundUri = local[alarm.id]?.soundUri ?: settings.defaultSoundUri,
+                vibrate = local[alarm.id]?.vibrate ?: true,
                 volumeRamp = settings.volumeRamp,
                 haTimeZone = state.timeZone,
                 dismissedAt = alarm.currentOccurrence?.takeIf { it.status == "dismissed" }
@@ -314,8 +317,9 @@ class Repository(private val app: App) {
         problemOf(e)
     }
 
-    suspend fun setSound(alarmId: String, uri: String?) {
-        if (uri == null) dao.deleteSound(alarmId) else dao.saveSound(AlarmSoundRow(alarmId, uri))
+    /** The phone-local sound and vibration of an alarm; the row is dropped when both are default. */
+    suspend fun setLocal(alarmId: String, uri: String?, vibrate: Boolean) {
+        if (uri == null && vibrate) dao.deleteSound(alarmId) else dao.saveSound(AlarmSoundRow(alarmId, uri, vibrate))
         rebuildEngine()
     }
 
@@ -330,7 +334,7 @@ class Repository(private val app: App) {
                         val res = ApiJson.decodeFromString(AlarmSaveResponse.serializer(), app.api.call("POST", "alarms", encode(edit.input!!.copy(revision = null))))
                         upsert(res.alarm)
                         dao.sounds().firstOrNull { it.alarmId == edit.alarmId }?.let {
-                            dao.saveSound(AlarmSoundRow(res.alarm.id, it.soundUri))
+                            dao.saveSound(it.copy(alarmId = res.alarm.id))
                             dao.deleteSound(edit.alarmId)
                         }
                     }

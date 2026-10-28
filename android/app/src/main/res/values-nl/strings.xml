@@ -89,6 +89,10 @@
     <string name="update_failed">De update is mislukt. Probeer opnieuw.</string>
     <string name="allow">Toestaan</string>
     <string name="update">Bijwerken</string>
+    <string name="check_update">Controleren op updates</string>
+    <string name="checking_update">Controleren…</string>
+    <string name="up_to_date">Dit is de nieuwste versie.</string>
+    <string name="update_check_failed">Kon niet controleren op updates. Controleer de verbinding met Home Assistant.</string>
     <string name="away_banner">Afwezig: Home Assistant-acties gepauzeerd. Wekkers gaan af op hun lokale tijd.</string>
     <string name="missed_one">Gemiste wekker: %1$s (%2$s)</string>
     <string name="review">Bekijken</string>
@@ -118,6 +122,8 @@
     <string name="snooze_minutes">Sluimeren (minuten)</string>
     <string name="snooze_default">Standaard (%d)</string>
     <string name="sound">Geluid</string>
+    <string name="vibrate">Trillen</string>
+    <string name="no_vibration">Niet trillen</string>
     <string name="sound_default">Standaard wekkergeluid</string>
     <string name="choose">Kiezen</string>
     <string name="actions">Acties</string>

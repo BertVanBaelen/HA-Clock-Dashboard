@@ -88,7 +88,7 @@ class RingingService : Service() {
         acquireWakeLock()
         goForeground(ring)
         playSound(ring)
-        vibrate()
+        if (ring.vibrate) vibrate()
         handler.removeCallbacks(timeout)
         handler.postDelayed(timeout, MAX_RINGING_MS)
         try {

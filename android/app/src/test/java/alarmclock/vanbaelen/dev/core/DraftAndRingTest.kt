@@ -78,6 +78,16 @@ class DraftAndRingTest {
     }
 
     @Test
+    fun ringPlanKeepsVibrationChoiceAlsoWhenSnoozed() {
+        val now = Instant.parse("2026-10-14T10:16:00Z")
+        val zone = ZoneId.of(brussels)
+        assertTrue(RingPlanner.next(spec("06:45", listOf("thu")), null, zone, now)!!.vibrate)
+        val silent = RingPlanner.next(spec("06:45", listOf("thu")).copy(vibrate = false), null, zone, now)!!
+        assertEquals(false, silent.vibrate)
+        assertEquals(false, silent.copy(snooze = true).vibrate)
+    }
+
+    @Test
     fun ringPlanAwayRingsAtLocalWallClockWithoutReports() {
         val now = Instant.parse("2026-10-14T10:16:00Z")
         val ny = ZoneId.of("America/New_York")

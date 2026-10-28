@@ -4,7 +4,10 @@ import alarmclock.vanbaelen.dev.BuildConfig
 import alarmclock.vanbaelen.dev.R
 import alarmclock.vanbaelen.dev.Routes
 import alarmclock.vanbaelen.dev.app
+import alarmclock.vanbaelen.dev.core.AppVersion
+import alarmclock.vanbaelen.dev.core.UpdateBlock
 import alarmclock.vanbaelen.dev.data.LocalSettings
+import alarmclock.vanbaelen.dev.update.UpdateState
 import alarmclock.vanbaelen.dev.ui.Format
 import alarmclock.vanbaelen.dev.ui.MainViewModel
 import android.app.Activity
@@ -62,6 +65,8 @@ fun SettingsScreen(vm: MainViewModel, nav: NavHostController) {
     val syncState by vm.syncState.collectAsState()
     var confirmLogout by remember { mutableStateOf(false) }
     var editTime by remember { mutableStateOf<String?>(null) }
+    var updateCheck by remember { mutableStateOf<String?>(null) }
+    val update by vm.updateState.collectAsState()
 
     fun update(transform: (LocalSettings) -> LocalSettings) {
         app.prefs.updateSettings(transform)
@@ -135,6 +140,29 @@ fun SettingsScreen(vm: MainViewModel, nav: NavHostController) {
 
             SectionTitle(stringResource(R.string.about))
             Info(stringResource(R.string.version), "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+            // AFR-UPD-01: check now instead of waiting for the next sync; installs when there is one.
+            Setting(stringResource(R.string.check_update), updateCheck) {
+                updateCheck = context.getString(R.string.checking_update)
+                app.scope.launch {
+                    val info = runCatching { app.syncer.checkUpdate() }.getOrNull()
+                    val available = info?.takeIf { AppVersion.updateAvailable(it, BuildConfig.VERSION_CODE.toLong()) }
+                    updateCheck = when {
+                        info == null -> context.getString(R.string.update_check_failed)
+                        available == null -> context.getString(R.string.up_to_date)
+                        else -> context.getString(R.string.update_available_text, available.version ?: "")
+                    }
+                    if (available != null) app.updater.install(available)
+                }
+            }
+            when (update) {
+                UpdateState.Idle -> Unit
+                // Opens "Install unknown apps" for this app; tap Check for updates again afterwards.
+                UpdateState.NeedsPermission -> Setting(stringResource(R.string.allow), updateStateText(update)) {
+                    vm.resetUpdate()
+                    runCatching { context.startActivity(app.updater.unknownSourcesIntent()) }
+                }
+                else -> Hint(updateStateText(update), modifier = Modifier.padding(horizontal = 16.dp))
+            }
             syncState.lastSyncAt?.let { Info(stringResource(R.string.last_sync), Format.ago(context, it)) }
             Info(stringResource(R.string.client_id), app.prefs.clientId)
         }
@@ -167,6 +195,17 @@ fun SettingsScreen(vm: MainViewModel, nav: NavHostController) {
             dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
+}
+
+@Composable
+private fun updateStateText(state: UpdateState): String = when (state) {
+    is UpdateState.Downloading -> stringResource(R.string.update_downloading, ((state.progress ?: 0f) * 100).toInt())
+    UpdateState.Installing -> stringResource(R.string.update_installing)
+    is UpdateState.Blocked -> stringResource(if (state.reason == UpdateBlock.RINGING) R.string.update_blocked_ringing else R.string.update_blocked_soon)
+    UpdateState.NeedsPermission -> stringResource(R.string.update_needs_permission)
+    UpdateState.ChecksumMismatch -> stringResource(R.string.update_checksum)
+    is UpdateState.Failed -> stringResource(R.string.update_failed)
+    UpdateState.Idle -> ""
 }
 
 @Composable

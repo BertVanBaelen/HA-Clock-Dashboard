@@ -31,7 +31,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /** One row of the alarm list: the alarm, its next ring on this phone and a running snooze. */
-data class AlarmItem(val effective: EffectiveAlarm, val next: PlannedRing?, val snoozed: PlannedRing?) {
+data class AlarmItem(val effective: EffectiveAlarm, val next: PlannedRing?, val snoozed: PlannedRing?, val vibrate: Boolean = true) {
     val alarm: Alarm get() = effective.alarm
 }
 
@@ -42,12 +42,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val ringing = app.engine.ringing
     val updateState = app.updater.state
 
-    val items: StateFlow<List<AlarmItem>> = combine(app.repository.alarms, app.engine.scheduled) { alarms, scheduled ->
+    val items: StateFlow<List<AlarmItem>> = combine(app.repository.alarms, app.engine.scheduled, app.repository.silentVibration) { alarms, scheduled, silent ->
         alarms.map { e ->
             AlarmItem(
                 e,
                 scheduled.firstOrNull { it.alarmId == e.alarm.id && !it.snooze },
                 scheduled.firstOrNull { it.alarmId == e.alarm.id && it.snooze },
+                e.alarm.id !in silent,
             )
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())

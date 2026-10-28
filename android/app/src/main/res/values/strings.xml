@@ -97,6 +97,10 @@
     <string name="update_failed">The update failed. Try again.</string>
     <string name="allow">Allow</string>
     <string name="update">Update</string>
+    <string name="check_update">Check for updates</string>
+    <string name="checking_update">Checking…</string>
+    <string name="up_to_date">This is the latest version.</string>
+    <string name="update_check_failed">Could not check for updates. Check the connection to Home Assistant.</string>
     <string name="away_banner">Away: Home Assistant actions paused. Alarms ring at their local time.</string>
     <string name="missed_one">Missed alarm: %1$s (%2$s)</string>
     <string name="review">Review</string>
@@ -127,6 +131,8 @@
     <string name="snooze_minutes">Snooze (minutes)</string>
     <string name="snooze_default">Default (%d)</string>
     <string name="sound">Sound</string>
+    <string name="vibrate">Vibrate</string>
+    <string name="no_vibration">No vibration</string>
     <string name="sound_default">Default alarm sound</string>
     <string name="choose">Choose</string>
     <string name="actions">Actions</string>

@@ -63,7 +63,7 @@ Light and dark follow the system (app) or HA's dark-mode setting (panel). There 
 - **New alarm card** (rise, toggled by the add button): "New alarm" with Cancel, and two choices.
   - "Simple alarm": "Just a time and a sound. Add actions later if you like." Opens a new alarm in the detail.
   - "With actions": "Lights, coffee, music and more around the alarm." Opens a new alarm in pick mode.
-- **Alarm card:** a 44/300 time, the label in `muted`, then "days · summary". The summary is "2 before · 1 with · 1 after · 1 after dismiss", or "Simple alarm" when there are no actions. Below it is a status line: next ring, snoozed until, off, skipped, or not synced/not saved. Next comes the mini timeline (180 wide, only when there are around-the-alarm actions), then the switch on the right. An off alarm shows its content at 50% opacity. Small pill buttons under the content hold "Skip next"/"Undo skip" (repeating and on) and "Dismiss now" (within the hour before the ring, or while ringing).
+- **Alarm card:** a 44/300 time, the label in `muted`, then "days · summary". The summary is "2 before · 1 with · 1 after · 1 after dismiss", or "Simple alarm" when there are no actions. In the app, " · No vibration" follows when the alarm does not vibrate. Below it is a status line: next ring, snoozed until, off, skipped, or not synced/not saved. Next comes the mini timeline (180 wide, only when there are around-the-alarm actions), then the switch on the right. An off alarm shows its content at 50% opacity. Small pill buttons under the content hold "Skip next"/"Undo skip" (repeating and on) and "Dismiss now" (within the hour before the ring, or while ringing).
 - **Below the list (panel):** "Planned by others" and "Your phones", as quiet sections with the same card style.
 - **Banners** (login, update, away, missed, problems, errors) are full-width cards with a 3px left stripe (`accent`, `warn` or `danger`) on `surface`.
 - **Bottom nav:** the selected item has an 18×2 accent bar above its label; the others are `muted`. App: Alarms · Night · Settings. Panel: Alarms · Install app, only when the install tab is available.
@@ -75,13 +75,13 @@ This replaces the old editor dialog/screen. Changes are kept in a draft until **
   - Back with unsaved changes asks "Discard changes?" (Discard / Keep editing).
   - Back in pick or place mode leaves that mode first.
 - **Header:** the 56/300 time (tap: time picker). On the right are the label and the days (tap: edit the name).
-- **Chips:** Repeat (the days), Snooze ("Snooze 9 min", or "Snooze default"), and in the app Sound (the ringtone name). A chip opens its inline editor right below the chips (rise); only one is open at a time.
+- **Chips:** Repeat (the days), Snooze ("Snooze 9 min", or "Snooze default"), and in the app Sound (the ringtone name) and Vibrate. The Vibrate chip toggles directly between "Vibrate" (`soft` fill) and "No vibration" (no fill, `muted`). Sound and vibration are stored on the phone only. A chip opens its inline editor right below the chips (rise); only one is open at a time.
   - Name: a text field.
   - Repeat: 7 day toggles, "Select no days for a one-time alarm".
   - Snooze: − value + and "Use default (N min)".
   - Sound: opens the system ringtone picker directly.
 - Banners for conflict (Reload), saved with warnings, and errors sit under the header.
-- **Simple view** (no actions, view mode): rows Name, Repeat, Snooze and Sound (app), each of which opens its editor inline. Below them is a dashed card: "+ Add actions". "Turn on lights, start coffee or play the news before, with or after this alarm. It stays a simple alarm until you do."
+- **Simple view** (no actions, view mode): rows Name, Repeat, Snooze and Sound (app), each of which opens its editor inline, and in the app a Vibrate row with a switch. Below them is a dashed card: "+ Add actions". "Turn on lights, start coffee or play the news before, with or after this alarm. It stays a simple alarm until you do."
 - **Timeline** (when there are actions, or in pick or place mode): a vertical rail at x=60.
   - Range: `R = max(60, farthest before/after offset rounded up to 15)` minutes on each side, at 6 px/min up to R=120, then `720/R` px/min.
   - Ticks: major ticks with clock-time labels every 15 min (R≤60), 30 (R≤180) or 60. Minor ticks every 5, 15 or 30 min.
