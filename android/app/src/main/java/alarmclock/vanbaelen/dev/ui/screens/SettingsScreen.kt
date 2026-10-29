@@ -65,7 +65,7 @@ fun SettingsScreen(vm: MainViewModel, nav: NavHostController) {
     val syncState by vm.syncState.collectAsState()
     var confirmLogout by remember { mutableStateOf(false) }
     var editTime by remember { mutableStateOf<String?>(null) }
-    var updateCheck by remember { mutableStateOf<String?>(null) }
+    var updateCheck by remember { mutableStateOf<UpdateCheck?>(null) }
     var pickEntity by remember { mutableStateOf<EntitySlot?>(null) }
     val update by vm.updateState.collectAsState()
 
@@ -147,15 +147,15 @@ fun SettingsScreen(vm: MainViewModel, nav: NavHostController) {
             SectionTitle(stringResource(R.string.about))
             Info(stringResource(R.string.version), "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
             // AFR-UPD-01: check now instead of waiting for the next sync; installs when there is one.
-            Setting(stringResource(R.string.check_update), updateCheck) {
-                updateCheck = context.getString(R.string.checking_update)
+            Setting(stringResource(R.string.check_update), updateCheckText(updateCheck)) {
+                updateCheck = UpdateCheck.Checking
                 app.scope.launch {
                     val info = runCatching { app.syncer.checkUpdate() }.getOrNull()
                     val available = info?.takeIf { AppVersion.updateAvailable(it, BuildConfig.VERSION_CODE.toLong()) }
                     updateCheck = when {
-                        info == null -> context.getString(R.string.update_check_failed)
-                        available == null -> context.getString(R.string.up_to_date)
-                        else -> context.getString(R.string.update_available_text, available.version ?: "")
+                        info == null -> UpdateCheck.Failed
+                        available == null -> UpdateCheck.UpToDate
+                        else -> UpdateCheck.Available(available.version ?: "")
                     }
                     if (available != null) app.updater.install(available)
                 }
@@ -215,6 +215,23 @@ fun SettingsScreen(vm: MainViewModel, nav: NavHostController) {
             dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
+}
+
+/** Result of Settings → Check for updates; its text is resolved while composing (configuration-aware). */
+private sealed interface UpdateCheck {
+    data object Checking : UpdateCheck
+    data object Failed : UpdateCheck
+    data object UpToDate : UpdateCheck
+    data class Available(val version: String) : UpdateCheck
+}
+
+@Composable
+private fun updateCheckText(check: UpdateCheck?): String? = when (check) {
+    null -> null
+    UpdateCheck.Checking -> stringResource(R.string.checking_update)
+    UpdateCheck.Failed -> stringResource(R.string.update_check_failed)
+    UpdateCheck.UpToDate -> stringResource(R.string.up_to_date)
+    is UpdateCheck.Available -> stringResource(R.string.update_available_text, check.version)
 }
 
 @Composable
