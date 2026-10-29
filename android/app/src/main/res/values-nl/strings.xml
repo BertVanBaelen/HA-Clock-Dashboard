@@ -186,8 +186,8 @@
     <string name="default_sound">Standaardgeluid</string>
     <string name="volume_ramp">Geleidelijk luider</string>
     <string name="volume_ramp_hint">Zacht beginnen en het volume over één minuut verhogen.</string>
-    <string name="night_auto">Starten tijdens opladen</string>
-    <string name="night_auto_hint">Open de nachtklok wanneer de lader aangesloten wordt terwijl de app open is, binnen het tijdvenster.</string>
+    <string name="night_auto">Vanzelf starten</string>
+    <string name="night_auto_hint">Open de nachtklok wanneer de telefoon oplaadt en op zijn zij gezet wordt binnen het tijdvenster, terwijl de app open is.</string>
     <string name="night_from">Van</string>
     <string name="night_until">Tot</string>
     <string name="night_open">Nachtklok openen</string>
@@ -245,6 +245,123 @@
     <string name="decrease">Minder</string>
     <string name="increase">Meer</string>
 
+    <!-- Zonsopgang (per wekker, op deze telefoon) -->
+    <string name="sunrise">Zonsopgang</string>
+    <string name="sunrise_chip">Zonsopgang %d min</string>
+    <string name="no_sunrise">Geen zonsopgang</string>
+    <string name="sunrise_hint">Met de nachtklok open wordt het scherm voor de wekker langzaam lichter, als een zonsopgang. Zonder nachtklok speelt een korte zonsopgang wanneer de wekker afgaat.</string>
+
+    <!-- Nachtklok (docs/design.md, Night display) -->
+    <string name="night_alarm_line">Wekker %1$s · over %2$s</string>
+    <string name="night_skipped_next">Overgeslagen · volgende wekker %s</string>
+    <string name="night_skipped_none">Overgeslagen · geen andere wekker</string>
+    <string name="night_charging">Opladen · %d%%</string>
+    <string name="night_battery">Batterij %d%%</string>
+    <string name="night_hint">Tik of veeg omhoog voor widgets</string>
+    <string name="night_dimmer">Dimmer</string>
+    <string name="night_dimmer_on">Dimmer aan</string>
+    <string name="night_dimmer_hint">Maak het scherm donkerder</string>
+    <string name="night_edit_widgets">Widgets kiezen</string>
+    <string name="night_hide">Verbergen</string>
+    <string name="night_auto_desc">Wanneer de telefoon tussen %1$s en %2$s op zijn zij oplaadt. Je kan de nachtklok ook altijd openen vanuit de app.</string>
+    <string name="widgets_intro">Widgets: kies wat je ziet wanneer je op het scherm tikt. Ze verschijnen in deze volgorde.</string>
+    <string name="widgets_entities_hint">Weer, thuis en agenda lezen entiteiten uit Home Assistant.</string>
+    <string name="widgets_entities_intro">De widgets van de nachtklok lezen deze Home Assistant-entiteiten met je login. Zet widgets aan en uit op de nachtklok.</string>
+    <string name="widgets_none">Geen widgets aan. Tik op Widgets kiezen.</string>
+    <string name="widget_weather">Weer van morgen</string>
+    <string name="widget_weather_text">Temperatuur, regen, zonsopgang</string>
+    <string name="widget_plan">Ochtendplan</string>
+    <string name="widget_plan_text">Je wekker en zijn acties</string>
+    <string name="widget_home">Slaapkamer</string>
+    <string name="widget_home_text">Nachtlampje, lichten, deur, verwarming</string>
+    <string name="widget_calendar">Eerste afspraak morgen</string>
+    <string name="widget_calendar_text">De eerste afspraak van de dag</string>
+    <string name="widget_battery">Batterij</string>
+    <string name="widget_battery_text">Laadniveau en wanneer hij vol is</string>
+    <string name="widget_plan_title">Volgende wekker</string>
+    <string name="widget_home_title">Thuis</string>
+    <string name="widget_calendar_title">Eerste afspraak</string>
+    <string name="widget_battery_title">Batterij</string>
+    <string name="widget_weather_setup">Kies een weerentiteit bij Instellingen.</string>
+    <string name="widget_home_setup">Kies de entiteiten van de slaapkamer bij Instellingen.</string>
+    <string name="widget_calendar_setup">Kies een agenda bij Instellingen.</string>
+    <string name="widget_calendar_empty">Niets in de agenda voor %s.</string>
+    <string name="skip_today">Vandaag overslaan</string>
+    <string name="skip_tomorrow">Morgen overslaan</string>
+    <string name="battery_full">Volledig opgeladen.</string>
+    <string name="battery_full_at">Opladen · vol rond %s.</string>
+    <string name="battery_charging">Opladen.</string>
+    <string name="battery_not_charging">Laadt niet op.</string>
+    <string name="today">Vandaag</string>
+    <string name="tomorrow">Morgen</string>
+    <string name="now">Nu</string>
+
+    <!-- Weer (Home Assistant-toestanden) -->
+    <string name="weather_clear_night">Helder</string>
+    <string name="weather_cloudy">Bewolkt</string>
+    <string name="weather_fog">Mist</string>
+    <string name="weather_hail">Hagel</string>
+    <string name="weather_lightning">Onweer</string>
+    <string name="weather_partlycloudy">Half bewolkt</string>
+    <string name="weather_pouring">Zware regen</string>
+    <string name="weather_rainy">Regen</string>
+    <string name="weather_snowy">Sneeuw</string>
+    <string name="weather_snowy_rainy">Natte sneeuw</string>
+    <string name="weather_sunny">Zonnig</string>
+    <string name="weather_windy">Winderig</string>
+    <string name="weather_unknown">Geen voorspelling</string>
+    <string name="weather_rain_around">Regen rond %s</string>
+    <string name="weather_rain_from">%1$s, regen vanaf %2$s</string>
+    <string name="weather_high">Max %s</string>
+    <string name="weather_low">Min %s</string>
+    <string name="weather_feels">voelt als %s</string>
+    <string name="advice_coat">Neem een jas mee.</string>
+    <string name="advice_umbrella">Neem een paraplu mee.</string>
+    <string name="advice_coat_umbrella">Neem een jas en een paraplu mee.</string>
+    <string name="advice_dry_after">Weer droog na %s.</string>
+    <string name="sun_times">Zon op om %1$s, onder om %2$s.</string>
+    <string name="sunrise_at">Zon op om %s.</string>
+
+    <!-- Toestanden van Home Assistant-entiteiten -->
+    <string name="state_on">Aan</string>
+    <string name="state_off">Uit</string>
+    <string name="state_locked">Op slot</string>
+    <string name="state_unlocked">Niet op slot</string>
+    <string name="state_open">Open</string>
+    <string name="state_closed">Dicht</string>
+    <string name="state_heating">Verwarmen</string>
+    <string name="state_cooling">Koelen</string>
+    <string name="state_auto">Automatisch</string>
+    <string name="state_unavailable">Niet beschikbaar</string>
+
+    <!-- Entiteiten kiezen (Instellingen → Nachtklok) -->
+    <string name="entity_weather">Weer</string>
+    <string name="entity_calendar">Agenda</string>
+    <string name="entity_room_temperature">Temperatuur slaapkamer</string>
+    <string name="entity_night_light">Nachtlampje</string>
+    <string name="entity_home">Status slaapkamer</string>
+    <string name="not_set">Niet ingesteld</string>
+    <string name="search">Zoeken</string>
+    <string name="choose_up_to">Kies er maximaal %d.</string>
+    <string name="no_entities">Geen passende entiteiten.</string>
+    <string name="clear">Wissen</string>
+
+    <!-- Wekscherm -->
+    <string name="swipe_snooze">Veeg omhoog om %d min te sluimeren</string>
+    <string name="swipe_snooze_again">Veeg omhoog om opnieuw te sluimeren</string>
+    <string name="snoozing_until">Sluimeren tot %s</string>
+    <string name="wake_status_sunrise">Wordt lichter als een zonsopgang</string>
+    <string name="wake_status_snoozed">Gedimd terwijl je sluimert</string>
+    <string name="good_morning">Goedemorgen</string>
+    <string name="good_afternoon">Goedemiddag</string>
+    <string name="good_evening">Goedenavond</string>
+    <string name="morning_subline">%1$s · wekker uit om %2$s</string>
+    <string name="chip_sunrise">Zon op %s</string>
+    <string name="chip_sunset">Zon onder %s</string>
+    <string name="chip_wind">Wind %s</string>
+    <string name="chip_action_now">%s · nu</string>
+    <string name="chip_action_later">%1$s · over %2$d min</string>
+
     <plurals name="missed_many">
         <item quantity="one">%d wekker gemist terwijl de telefoon uit stond.</item>
         <item quantity="other">%d wekkers gemist terwijl de telefoon uit stond.</item>
@@ -260,5 +377,17 @@
     <plurals name="action_count">
         <item quantity="one">%d actie</item>
         <item quantity="other">%d acties</item>
+    </plurals>
+    <plurals name="more_events">
+        <item quantity="one">Nog %d daarna</item>
+        <item quantity="other">Nog %d daarna</item>
+    </plurals>
+    <plurals name="more_actions">
+        <item quantity="one">+%d meer</item>
+        <item quantity="other">+%d meer</item>
+    </plurals>
+    <plurals name="after_dismiss_count">
+        <item quantity="one">%d actie na het uitzetten</item>
+        <item quantity="other">%d acties na het uitzetten</item>
     </plurals>
 </resources>

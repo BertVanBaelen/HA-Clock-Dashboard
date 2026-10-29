@@ -75,13 +75,13 @@ This replaces the old editor dialog/screen. Changes are kept in a draft until **
   - Back with unsaved changes asks "Discard changes?" (Discard / Keep editing).
   - Back in pick or place mode leaves that mode first.
 - **Header:** the 56/300 time (tap: time picker). On the right are the label and the days (tap: edit the name).
-- **Chips:** Repeat (the days), Snooze ("Snooze 9 min", or "Snooze default"), and in the app Sound (the ringtone name) and Vibrate. The Vibrate chip toggles directly between "Vibrate" (`soft` fill) and "No vibration" (no fill, `muted`). Sound and vibration are stored on the phone only. A chip opens its inline editor right below the chips (rise); only one is open at a time.
+- **Chips:** Repeat (the days), Snooze ("Snooze 9 min", or "Snooze default"), and in the app Sound (the ringtone name), Vibrate and Sunrise. The Vibrate chip toggles directly between "Vibrate" (`soft` fill) and "No vibration" (no fill, `muted`). The Sunrise chip ("Sunrise 20 min" or "No sunrise") opens Off / 10 / 20 / 30 min. Sound, vibration and sunrise are stored on the phone only. A chip opens its inline editor right below the chips (rise); only one is open at a time.
   - Name: a text field.
   - Repeat: 7 day toggles, "Select no days for a one-time alarm".
   - Snooze: − value + and "Use default (N min)".
   - Sound: opens the system ringtone picker directly.
 - Banners for conflict (Reload), saved with warnings, and errors sit under the header.
-- **Simple view** (no actions, view mode): rows Name, Repeat, Snooze and Sound (app), each of which opens its editor inline, and in the app a Vibrate row with a switch. Below them is a dashed card: "+ Add actions". "Turn on lights, start coffee or play the news before, with or after this alarm. It stays a simple alarm until you do."
+- **Simple view** (no actions, view mode): rows Name, Repeat, Snooze and Sound (app), each of which opens its editor inline, and in the app a Vibrate row with a switch and a Sunrise row. Below them is a dashed card: "+ Add actions". "Turn on lights, start coffee or play the news before, with or after this alarm. It stays a simple alarm until you do."
 - **Timeline** (when there are actions, or in pick or place mode): a vertical rail at x=60.
   - Range: `R = max(60, farthest before/after offset rounded up to 15)` minutes on each side, at 6 px/min up to R=120, then `720/R` px/min.
   - Ticks: major ticks with clock-time labels every 15 min (R≤60), 30 (R≤180) or 60. Minor ticks every 5, 15 or 30 min.
@@ -102,6 +102,37 @@ This replaces the old editor dialog/screen. Changes are kept in a draft until **
     - A row with the Enabled switch, plus "Run now" for a saved action of a saved alarm. A "before already past" warning shows when it applies.
     - Buttons: Remove (existing action), Cancel, and an accent **Place here** (new) or **Done** (existing). These change the draft; Save stores it.
     - After Place here or Done, the card flashes.
+
+### Night display (app)
+From the "Sunrise Alarm — Night Display" mockups. A landscape layout on an 844 × 390 frame, scaled to the screen and centred on black; sizes in this section are frame units and ignore the font scale. The screen stays on, the system bars are hidden and the window brightness is 2 %.
+
+| Token | Value | Use |
+|---|---|---|
+| `glow` | `#E08C45` | The clock |
+| `ink` | `#E6B183` | Text |
+| `muted` | `#AD8059` | Secondary text, action dots |
+| `line` | `#3A2816` | Borders, the timeline |
+| `soft` | `#120C06` | Dimmer on, battery track |
+| `accent` | `#F2994A` | Alarm dot and time, switches on, Done, Stop |
+| `on-accent` | `#1A0E04` | Text on accent |
+| `off` / `knob` | `#3A2A1C` / `#8C6B4E` | Switch off |
+
+Content is drawn at 90 % opacity, 45 % with the Dimmer on (remembered).
+- **Resting:** the clock (176 / 200, −0.045em, no AM/PM) centred at the top. Below it a bell and "Alarm 06:30 · in 7 h 12 min" (16, `muted`), "Snoozed until 06:39", or "Skipped · next alarm Sat 08:15". Under that, when the next alarm has actions, a 400 wide line with its actions as 6 dots and the alarm as an 11 accent dot (same range as the mini timeline), labelled with the first action, the alarm (600, accent) and the last action; labels closer than 15 % to the alarm are left out. The line is at 30 % while the alarm is skipped. Top right: "Tap or swipe up for widgets" (12, 75 %). The resting content moves by up to 10 × 6 every 3 minutes against burn-in.
+- **Widgets** (tap or swipe up; tap or swipe down hides them): the clock shrinks to 44 % and moves to the top left (600 ms, ease-soft). Under it the alarm line (14, `ink`) and "Charging · 82%". Bottom left the Dimmer pill; top right "Edit widgets" and "Hide" (moon icon). The cards (204 × 288, radius 20, 1px `line`, title 11 / 600 uppercase) scroll sideways from x = 280 and rise 16 → 0 after 150 ms:
+  - *Weather* (title Today / Tomorrow / weekday): icon, "7° → 12°" (30 / 300), "Rain around 08:00" or the condition, then advice and sunrise / sunset (13, `muted`).
+  - *Next alarm*: the actions around the alarm as "time name" rows with the alarm row in accent, how many run after dismiss, and a "Skip tomorrow" switch (repeating alarms). A skipped alarm stays in the card at 35 % with the switch on, so the skip can be undone.
+  - *Home*: room temperature (30 / 300) and its name, a Night light switch, and up to three status rows ("Front door · Locked").
+  - *First up*: the first timed event of the day (time 30 / 300, title 15 / 500), its place and "N more after".
+  - *Battery*: percentage, an 8 high bar and when it is full.
+  - An HA widget without its entity says where to choose it, with a Settings pill.
+- **Edit widgets:** "Done" (accent) top right. A "Start by itself" tile ("When the phone charges on its side between 22:00 and 07:00…"), the intro line, and two columns of widget tiles (icon, name, description, switch; off tiles at 55 % without a border). A last line points to Settings for the entities.
+- **Sunrise** (an alarm with a sunrise, night display open): over the chosen minutes before the alarm the background and text follow the keyframes 0 % `#000000` / `#E6B183`, 35 % `#2E1607` / `#F2C79C`, 55 % `#C77632` / `#FFF3E6`, 62 % text `#2A1A0E`, 78 % `#FFDDB5`, 100 % `#FFFDF8` / `#2A1A0E`, and the window brightness rises from 2 % to 100 % (quadratic).
+
+### Wake-up screen (app)
+- **Ringing:** the time (120 or 26 % of the width, 200) and the label or "Good morning" in the middle; a chevron and "Swipe up to snooze 9 min" that nudges up 6 every 2.4 s (tapping it also snoozes); bottom left the status ("Brightening like a sunrise"), bottom right **Stop** (accent pill). A swipe up of 60 snoozes. With a sunrise the screen runs the keyframes above over 30 s, or starts bright when the night display already showed them; without one it is black with `ink` text.
+- **Snoozed here:** background `#120904`, brightness 5 %, "Snoozing until 06:39", "Swipe up to snooze again" (adds one more snooze length) and "Dimmed while you snooze". Stop dismisses the snoozed alarm.
+- **After Stop:** "Good morning" (24 / 600), the date and "alarm off at 06:31", and a Done pill. With weather: the icon, the temperature (76 / 200), "Cloudy, rain from 08:00", high / low / feels like, advice in a `soft` box, and now plus six hours (time, icon, temperature, a rain bar up to 40 high, the chance in rain blue `#3F6A94`). Chips for sunrise, sunset, wind and the after-dismiss actions ("Coffee · now"). Light (`#FFFDF8`, ink `#2A1A0E`, muted `#6B5644`) after a sunrise, the night palette otherwise. It closes by itself after 10 minutes.
 
 ## Icon
 

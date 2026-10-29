@@ -98,9 +98,8 @@ class Repository(private val app: App) {
     val syncState: Flow<SyncStateRow> = app.db.dao().syncStateFlow().map { it ?: SyncStateRow() }
     val edits: Flow<List<PendingEditRow>> = app.db.dao().editsFlow()
     val missed: Flow<List<MissedAlarmRow>> = app.db.dao().missedFlow()
-    val sounds: Flow<Map<String, String?>> = app.db.dao().soundsFlow().map { rows -> rows.associate { it.alarmId to it.soundUri } }
-    /** Alarms set not to vibrate on this phone. */
-    val silentVibration: Flow<Set<String>> = app.db.dao().soundsFlow().map { rows -> rows.filter { !it.vibrate }.map { it.alarmId }.toSet() }
+    /** Sound, vibration and sunrise set on this phone, by alarm id (only alarms with a choice). */
+    val local: Flow<Map<String, AlarmSoundRow>> = app.db.dao().soundsFlow().map { rows -> rows.associateBy { it.alarmId } }
     val scripts: Flow<List<ScriptRow>> = app.db.dao().scriptsFlow()
     val pendingReports: Flow<Int> = app.db.dao().reportCountFlow()
 
@@ -140,6 +139,7 @@ class Repository(private val app: App) {
                 snoozeMinutes = alarm.snoozeMinutes ?: state.defaultSnooze,
                 soundUri = local[alarm.id]?.soundUri ?: settings.defaultSoundUri,
                 vibrate = local[alarm.id]?.vibrate ?: true,
+                sunriseMinutes = local[alarm.id]?.sunrise ?: 0,
                 volumeRamp = settings.volumeRamp,
                 haTimeZone = state.timeZone,
                 dismissedAt = alarm.currentOccurrence?.takeIf { it.status == "dismissed" }
@@ -317,9 +317,9 @@ class Repository(private val app: App) {
         problemOf(e)
     }
 
-    /** The phone-local sound and vibration of an alarm; the row is dropped when both are default. */
-    suspend fun setLocal(alarmId: String, uri: String?, vibrate: Boolean) {
-        if (uri == null && vibrate) dao.deleteSound(alarmId) else dao.saveSound(AlarmSoundRow(alarmId, uri, vibrate))
+    /** The phone-local sound, vibration and sunrise of an alarm; the row is dropped when all are default. */
+    suspend fun setLocal(alarmId: String, uri: String?, vibrate: Boolean, sunrise: Int) {
+        if (uri == null && vibrate && sunrise == 0) dao.deleteSound(alarmId) else dao.saveSound(AlarmSoundRow(alarmId, uri, vibrate, sunrise))
         rebuildEngine()
     }
 

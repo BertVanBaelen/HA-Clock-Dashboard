@@ -108,18 +108,7 @@ class RingingService : Service() {
         val ring = current ?: app.engine.ringing.value ?: return next()
         val minutes = ring.snoozeMinutes.coerceIn(1, 60)
         ReportQueue.enqueue(this, ring, ReportType.SNOOZED)
-        val snoozed = app.engine.snooze(ring, minutes)
-        Notifications.notify(
-            this, Notifications.snoozedId(ring.alarmId),
-            NotificationCompat.Builder(this, Notifications.CHANNEL_SNOOZE)
-                .setSmallIcon(R.drawable.ic_stat_alarm)
-                .setContentTitle(getString(R.string.snoozed_title, ring.label.ifBlank { getString(R.string.alarm) }))
-                .setContentText(getString(R.string.snoozed_until, timeText(snoozed.ringAt)))
-                .setOngoing(true)
-                .setContentIntent(Notifications.openAppIntent(this))
-                .addAction(0, getString(R.string.stop), dismissSnoozedIntent(this, snoozed))
-                .build(),
-        )
+        notifySnoozed(this, app.engine.snooze(ring, minutes))
         next()
     }
 
@@ -280,9 +269,6 @@ class RingingService : Service() {
             .build()
     }
 
-    private fun timeText(epochMs: Long): String =
-        android.text.format.DateFormat.getTimeFormat(this).format(java.util.Date(epochMs))
-
     companion object {
         private const val TAG = "RingingService"
         const val ACTION_START = "alarmclock.vanbaelen.dev.RING_START"
@@ -301,6 +287,22 @@ class RingingService : Service() {
         /** Sends Snooze / Stop from the ringing screen. */
         fun send(context: Context, action: String) {
             context.startService(Intent(context, RingingService::class.java).setAction(action))
+        }
+
+        /** The ongoing "Snoozed until" notification with Stop; also after snoozing again on the ringing screen. */
+        fun notifySnoozed(context: Context, snoozed: PlannedRing) {
+            val until = android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(snoozed.ringAt))
+            Notifications.notify(
+                context, Notifications.snoozedId(snoozed.alarmId),
+                NotificationCompat.Builder(context, Notifications.CHANNEL_SNOOZE)
+                    .setSmallIcon(R.drawable.ic_stat_alarm)
+                    .setContentTitle(context.getString(R.string.snoozed_title, snoozed.label.ifBlank { context.getString(R.string.alarm) }))
+                    .setContentText(context.getString(R.string.snoozed_until, until))
+                    .setOngoing(true)
+                    .setContentIntent(Notifications.openAppIntent(context))
+                    .addAction(0, context.getString(R.string.stop), dismissSnoozedIntent(context, snoozed))
+                    .build(),
+            )
         }
 
         fun dismissSnoozedIntent(context: Context, ring: PlannedRing): PendingIntent = PendingIntent.getBroadcast(

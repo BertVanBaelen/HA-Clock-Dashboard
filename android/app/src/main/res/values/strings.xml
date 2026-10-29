@@ -198,8 +198,8 @@
     <string name="default_sound">Default sound</string>
     <string name="volume_ramp">Gradually louder</string>
     <string name="volume_ramp_hint">Start softly and increase the volume over one minute.</string>
-    <string name="night_auto">Start while charging</string>
-    <string name="night_auto_hint">Open the night display when the charger is connected with the app open, inside the time window.</string>
+    <string name="night_auto">Start by itself</string>
+    <string name="night_auto_hint">Open the night display when the phone is charging and turned on its side inside the time window, with the app open.</string>
     <string name="night_from">From</string>
     <string name="night_until">Until</string>
     <string name="night_open">Open night display</string>
@@ -257,6 +257,123 @@
     <string name="decrease">Less</string>
     <string name="increase">More</string>
 
+    <!-- Sunrise (per alarm, on this phone) -->
+    <string name="sunrise">Sunrise</string>
+    <string name="sunrise_chip">Sunrise %d min</string>
+    <string name="no_sunrise">No sunrise</string>
+    <string name="sunrise_hint">With the night display open, the screen slowly brightens like a sunrise before the alarm. Without it, a short sunrise plays when the alarm rings.</string>
+
+    <!-- Night display (docs/design.md, Night display) -->
+    <string name="night_alarm_line">Alarm %1$s · in %2$s</string>
+    <string name="night_skipped_next">Skipped · next alarm %s</string>
+    <string name="night_skipped_none">Skipped · no other alarm</string>
+    <string name="night_charging">Charging · %d%%</string>
+    <string name="night_battery">Battery %d%%</string>
+    <string name="night_hint">Tap or swipe up for widgets</string>
+    <string name="night_dimmer">Dimmer</string>
+    <string name="night_dimmer_on">Dimmer on</string>
+    <string name="night_dimmer_hint">Make the screen dimmer</string>
+    <string name="night_edit_widgets">Edit widgets</string>
+    <string name="night_hide">Hide</string>
+    <string name="night_auto_desc">When the phone charges on its side between %1$s and %2$s. You can always open it from the app too.</string>
+    <string name="widgets_intro">Widgets: choose what shows when you tap the screen. They appear in this order.</string>
+    <string name="widgets_entities_hint">Weather, home and calendar read entities from Home Assistant.</string>
+    <string name="widgets_entities_intro">Widgets of the night display read these Home Assistant entities with your login. Turn widgets on and off on the night display.</string>
+    <string name="widgets_none">No widgets on. Tap Edit widgets to choose some.</string>
+    <string name="widget_weather">Tomorrow’s weather</string>
+    <string name="widget_weather_text">Temperature, rain, sunrise</string>
+    <string name="widget_plan">Morning plan</string>
+    <string name="widget_plan_text">Your alarm and its actions</string>
+    <string name="widget_home">Bedroom</string>
+    <string name="widget_home_text">Night light, lights, door, heating</string>
+    <string name="widget_calendar">First up tomorrow</string>
+    <string name="widget_calendar_text">The first event of the day</string>
+    <string name="widget_battery">Battery</string>
+    <string name="widget_battery_text">Charge level and when it’s full</string>
+    <string name="widget_plan_title">Next alarm</string>
+    <string name="widget_home_title">Home</string>
+    <string name="widget_calendar_title">First up</string>
+    <string name="widget_battery_title">Battery</string>
+    <string name="widget_weather_setup">Choose a weather entity in Settings.</string>
+    <string name="widget_home_setup">Choose the bedroom entities in Settings.</string>
+    <string name="widget_calendar_setup">Choose a calendar in Settings.</string>
+    <string name="widget_calendar_empty">Nothing in the calendar for %s.</string>
+    <string name="skip_today">Skip today</string>
+    <string name="skip_tomorrow">Skip tomorrow</string>
+    <string name="battery_full">Fully charged.</string>
+    <string name="battery_full_at">Charging · full around %s.</string>
+    <string name="battery_charging">Charging.</string>
+    <string name="battery_not_charging">Not charging.</string>
+    <string name="today">Today</string>
+    <string name="tomorrow">Tomorrow</string>
+    <string name="now">Now</string>
+
+    <!-- Weather (Home Assistant conditions) -->
+    <string name="weather_clear_night">Clear</string>
+    <string name="weather_cloudy">Cloudy</string>
+    <string name="weather_fog">Fog</string>
+    <string name="weather_hail">Hail</string>
+    <string name="weather_lightning">Thunderstorms</string>
+    <string name="weather_partlycloudy">Partly cloudy</string>
+    <string name="weather_pouring">Heavy rain</string>
+    <string name="weather_rainy">Rain</string>
+    <string name="weather_snowy">Snow</string>
+    <string name="weather_snowy_rainy">Sleet</string>
+    <string name="weather_sunny">Sunny</string>
+    <string name="weather_windy">Windy</string>
+    <string name="weather_unknown">No forecast</string>
+    <string name="weather_rain_around">Rain around %s</string>
+    <string name="weather_rain_from">%1$s, rain from %2$s</string>
+    <string name="weather_high">High %s</string>
+    <string name="weather_low">Low %s</string>
+    <string name="weather_feels">feels like %s</string>
+    <string name="advice_coat">Take a coat.</string>
+    <string name="advice_umbrella">Take an umbrella.</string>
+    <string name="advice_coat_umbrella">Take a coat and an umbrella.</string>
+    <string name="advice_dry_after">Dry again after %s.</string>
+    <string name="sun_times">Sunrise at %1$s, sunset at %2$s.</string>
+    <string name="sunrise_at">Sunrise at %s.</string>
+
+    <!-- Home Assistant entity states -->
+    <string name="state_on">On</string>
+    <string name="state_off">Off</string>
+    <string name="state_locked">Locked</string>
+    <string name="state_unlocked">Unlocked</string>
+    <string name="state_open">Open</string>
+    <string name="state_closed">Closed</string>
+    <string name="state_heating">Heating</string>
+    <string name="state_cooling">Cooling</string>
+    <string name="state_auto">Auto</string>
+    <string name="state_unavailable">Unavailable</string>
+
+    <!-- Choosing entities (Settings → Night display) -->
+    <string name="entity_weather">Weather</string>
+    <string name="entity_calendar">Calendar</string>
+    <string name="entity_room_temperature">Bedroom temperature</string>
+    <string name="entity_night_light">Night light</string>
+    <string name="entity_home">Bedroom status</string>
+    <string name="not_set">Not set</string>
+    <string name="search">Search</string>
+    <string name="choose_up_to">Choose up to %d.</string>
+    <string name="no_entities">No matching entities.</string>
+    <string name="clear">Clear</string>
+
+    <!-- Wake-up screen -->
+    <string name="swipe_snooze">Swipe up to snooze %d min</string>
+    <string name="swipe_snooze_again">Swipe up to snooze again</string>
+    <string name="snoozing_until">Snoozing until %s</string>
+    <string name="wake_status_sunrise">Brightening like a sunrise</string>
+    <string name="wake_status_snoozed">Dimmed while you snooze</string>
+    <string name="good_morning">Good morning</string>
+    <string name="good_afternoon">Good afternoon</string>
+    <string name="good_evening">Good evening</string>
+    <string name="morning_subline">%1$s · alarm off at %2$s</string>
+    <string name="chip_sunrise">Sunrise %s</string>
+    <string name="chip_sunset">Sunset %s</string>
+    <string name="chip_wind">Wind %s</string>
+    <string name="chip_action_now">%s · now</string>
+    <string name="chip_action_later">%1$s · in %2$d min</string>
+
     <plurals name="missed_many">
         <item quantity="one">%d alarm was missed while the phone was off.</item>
         <item quantity="other">%d alarms were missed while the phone was off.</item>
@@ -272,5 +389,17 @@
     <plurals name="action_count">
         <item quantity="one">%d action</item>
         <item quantity="other">%d actions</item>
+    </plurals>
+    <plurals name="more_events">
+        <item quantity="one">%d more after</item>
+        <item quantity="other">%d more after</item>
+    </plurals>
+    <plurals name="more_actions">
+        <item quantity="one">+%d more</item>
+        <item quantity="other">+%d more</item>
+    </plurals>
+    <plurals name="after_dismiss_count">
+        <item quantity="one">%d action after you dismiss</item>
+        <item quantity="other">%d actions after you dismiss</item>
     </plurals>
 </resources>

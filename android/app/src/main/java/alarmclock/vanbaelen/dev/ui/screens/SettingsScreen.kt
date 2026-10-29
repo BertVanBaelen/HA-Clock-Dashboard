@@ -66,6 +66,7 @@ fun SettingsScreen(vm: MainViewModel, nav: NavHostController) {
     var confirmLogout by remember { mutableStateOf(false) }
     var editTime by remember { mutableStateOf<String?>(null) }
     var updateCheck by remember { mutableStateOf<String?>(null) }
+    var pickEntity by remember { mutableStateOf<EntitySlot?>(null) }
     val update by vm.updateState.collectAsState()
 
     fun update(transform: (LocalSettings) -> LocalSettings) {
@@ -132,6 +133,11 @@ fun SettingsScreen(vm: MainViewModel, nav: NavHostController) {
             Setting(stringResource(R.string.night_from), Format.time(context, settings.nightStart)) { editTime = "start" }
             Setting(stringResource(R.string.night_until), Format.time(context, settings.nightEnd)) { editTime = "end" }
             Setting(stringResource(R.string.night_open), null) { nav.navigate(Routes.NIGHT) }
+            Hint(stringResource(R.string.widgets_entities_intro), modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            val notSet = stringResource(R.string.not_set)
+            EntitySlot.entries.forEach { slot ->
+                Setting(stringResource(slot.title), slot.read(settings).joinToString(", ").ifEmpty { notSet }) { pickEntity = slot }
+            }
             HorizontalDivider()
 
             SectionTitle(stringResource(R.string.reliability))
@@ -177,6 +183,20 @@ fun SettingsScreen(vm: MainViewModel, nav: NavHostController) {
                 val value = "%02d:%02d".format(t.hour, t.minute)
                 app.prefs.updateSettings { if (which == "start") it.copy(nightStart = value) else it.copy(nightEnd = value) }
                 editTime = null
+            },
+        )
+    }
+
+    pickEntity?.let { slot ->
+        EntityPickerDialog(
+            title = stringResource(slot.title),
+            accepts = slot::accepts,
+            selected = slot.read(settings),
+            max = slot.max,
+            onDismiss = { pickEntity = null },
+            onDone = { ids ->
+                app.prefs.updateSettings { slot.write(it, ids) }
+                pickEntity = null
             },
         )
     }

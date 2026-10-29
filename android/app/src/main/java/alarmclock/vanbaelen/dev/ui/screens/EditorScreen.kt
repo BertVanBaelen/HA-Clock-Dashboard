@@ -10,6 +10,7 @@ import alarmclock.vanbaelen.dev.core.DraftError
 import alarmclock.vanbaelen.dev.core.Drafts
 import alarmclock.vanbaelen.dev.core.Limits
 import alarmclock.vanbaelen.dev.core.PendingEdits
+import alarmclock.vanbaelen.dev.core.Sunrise
 import alarmclock.vanbaelen.dev.core.Timeline
 import alarmclock.vanbaelen.dev.core.Timing
 import alarmclock.vanbaelen.dev.core.Weekday
@@ -107,7 +108,7 @@ import java.time.format.TextStyle
 /** What the bottom area of the alarm detail shows (docs/design.md, Alarm detail). */
 enum class DetailMode { VIEW, PICK, PLACE }
 
-enum class DetailField { NAME, REPEAT, SNOOZE }
+enum class DetailField { NAME, REPEAT, SNOOZE, SUNRISE }
 
 /** The open inline editor; [inRows] when opened from a simple-view row instead of a chip. */
 data class InlineEditor(val field: DetailField, val inRows: Boolean)
@@ -138,6 +139,9 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     /** Vibrate while ringing; kept on this phone like the sound. */
     val vibrate = MutableStateFlow(true)
     val baseVibrate = MutableStateFlow(true)
+    /** Sunrise minutes before the alarm (0 = off); kept on this phone like the sound. */
+    val sunrise = MutableStateFlow(0)
+    val baseSunrise = MutableStateFlow(0)
     val mode = MutableStateFlow(DetailMode.VIEW)
     val placing = MutableStateFlow<Placing?>(null)
     val inline = MutableStateFlow<InlineEditor?>(null)
@@ -165,6 +169,8 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         baseSound.value = null
         vibrate.value = true
         baseVibrate.value = true
+        sunrise.value = 0
+        baseSunrise.value = 0
         errors.value = emptyMap()
         saving.value = false
         conflict.value = false
@@ -182,6 +188,8 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                 baseSound.value = local?.soundUri
                 vibrate.value = local?.vibrate ?: true
                 baseVibrate.value = vibrate.value
+                sunrise.value = local?.sunrise ?: 0
+                baseSunrise.value = sunrise.value
             }
             loadingScripts.value = true
             val problem = app.repository.refreshScripts()
@@ -305,7 +313,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private suspend fun saveSound(alarmId: String) {
-        app.repository.setLocal(alarmId, sound.value, vibrate.value)
+        app.repository.setLocal(alarmId, sound.value, vibrate.value, sunrise.value)
     }
 
     fun delete(onDone: (String?) -> Unit, onError: (String) -> Unit) {
@@ -358,6 +366,8 @@ fun AlarmDetail(
     val baseSound by vm.baseSound.collectAsState()
     val vibrate by vm.vibrate.collectAsState()
     val baseVibrate by vm.baseVibrate.collectAsState()
+    val sunrise by vm.sunrise.collectAsState()
+    val baseSunrise by vm.baseSunrise.collectAsState()
     val mode by vm.mode.collectAsState()
     val placing by vm.placing.collectAsState()
     val inline by vm.inline.collectAsState()
@@ -397,7 +407,7 @@ fun AlarmDetail(
     }
 
     val isNew = draft.id == null
-    val changed = draft != base || sound != baseSound || vibrate != baseVibrate
+    val changed = draft != base || sound != baseSound || vibrate != baseVibrate || sunrise != baseSunrise
     val toggleVibrate = { vm.vibrate.value = !vibrate }
     val back: () -> Unit = {
         when {
@@ -411,6 +421,7 @@ fun AlarmDetail(
     val days = Format.days(context, draft.repeatDays)
     val soundLabel = soundName(context, sound) ?: stringResource(R.string.sound_default)
     val snoozeLabel = draft.snoozeMinutes?.let { stringResource(R.string.snooze_chip, it) } ?: stringResource(R.string.snooze_chip_default)
+    val sunriseLabel = if (sunrise > 0) stringResource(R.string.sunrise_chip, sunrise) else stringResource(R.string.no_sunrise)
 
     Box(
         modifier
@@ -491,6 +502,7 @@ fun AlarmDetail(
                         icon = if (vibrate) AppIcons.vibrate else AppIcons.vibrateOff,
                         selected = vibrate,
                     )
+                    Chip(sunriseLabel, { vm.toggleInline(DetailField.SUNRISE, false) }, icon = AppIcons.sunrise, selected = inline == InlineEditor(DetailField.SUNRISE, false))
                 }
                 inline?.takeIf { !it.inRows }?.let { open ->
                     key(open) { Rise { InlineEditorView(open.field, draft, state.defaultSnooze, vm) } }
@@ -505,7 +517,7 @@ fun AlarmDetail(
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (mode == DetailMode.VIEW && draft.actions.isEmpty()) {
                     Rise(Modifier.fillMaxSize()) {
-                        SimpleView(draft, inline, days, snoozeLabel, soundLabel, state.defaultSnooze, vm, pickSound, vibrate, toggleVibrate)
+                        SimpleView(draft, inline, days, snoozeLabel, soundLabel, sunriseLabel, state.defaultSnooze, vm, pickSound, vibrate, toggleVibrate)
                     }
                 } else {
                     TimelineBody(
@@ -628,6 +640,33 @@ private fun InlineEditorView(field: DetailField, draft: Draft, defaultSnooze: In
             Spacer(Modifier.weight(1f))
             if (draft.snoozeMinutes != null) Pill(stringResource(R.string.snooze_use_default, defaultSnooze), { vm.update { it.copy(snoozeMinutes = null) } })
         }
+        DetailField.SUNRISE -> Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val sunrise by vm.sunrise.collectAsState()
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Sunrise.CHOICES.forEach { minutes ->
+                    val on = minutes == sunrise
+                    val shape = RoundedCornerShape(20.dp)
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .heightIn(min = 40.dp)
+                            .clip(shape)
+                            .background(if (on) t.accent else t.bg)
+                            .border(1.dp, if (on) t.accent else t.line, shape)
+                            .clickable(role = Role.RadioButton) { vm.sunrise.value = minutes },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            if (minutes == 0) stringResource(R.string.off) else stringResource(R.string.dur_min, minutes),
+                            style = AppType.secondary,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (on) t.onAccent else t.ink,
+                        )
+                    }
+                }
+            }
+            Hint(stringResource(R.string.sunrise_hint), t.muted)
+        }
     }
 }
 
@@ -639,6 +678,7 @@ private fun SimpleView(
     days: String,
     snoozeLabel: String,
     soundLabel: String,
+    sunriseLabel: String,
     defaultSnooze: Int,
     vm: EditorViewModel,
     pickSound: () -> Unit,
@@ -665,6 +705,10 @@ private fun SimpleView(
             trailing = { AppSwitch(vibrate, { toggleVibrate() }, stringResource(R.string.vibrate)) },
             onClick = toggleVibrate,
         )
+        SimpleRow(stringResource(R.string.sunrise), sunriseLabel) { vm.toggleInline(DetailField.SUNRISE, true) }
+        if (inline == InlineEditor(DetailField.SUNRISE, true)) {
+            key(inline) { Rise(Modifier.padding(vertical = 8.dp)) { InlineEditorView(DetailField.SUNRISE, draft, defaultSnooze, vm) } }
+        }
 
         val shape = RoundedCornerShape(18.dp)
         Column(

@@ -6,6 +6,8 @@ import alarmclock.vanbaelen.dev.data.ApiClient
 import alarmclock.vanbaelen.dev.data.AppDatabase
 import alarmclock.vanbaelen.dev.data.AppPrefs
 import alarmclock.vanbaelen.dev.data.AuthManager
+import alarmclock.vanbaelen.dev.data.HomeAssistant
+import alarmclock.vanbaelen.dev.data.NightData
 import alarmclock.vanbaelen.dev.data.Repository
 import alarmclock.vanbaelen.dev.data.SecureStore
 import alarmclock.vanbaelen.dev.data.Syncer
@@ -33,6 +35,8 @@ class App : Application() {
     private val http by lazy { createHttpClient(prefs) }
     val auth by lazy { AuthManager(http, prefs, secure) }
     val api by lazy { ApiClient(http, auth, prefs) }
+    val ha by lazy { HomeAssistant(http, auth, prefs) }
+    val night by lazy { NightData(this) }
     val db by lazy { AppDatabase.create(this) }
     val repository by lazy { Repository(this) }
     val syncer by lazy { Syncer(this) }

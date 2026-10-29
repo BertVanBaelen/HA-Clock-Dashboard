@@ -68,6 +68,48 @@ val LightTokens = AppColors(
     warn = Color(0xFF8A5A00),
 )
 
+/** Night display and wake-up screen (docs/design.md, Night display): warm amber on black. */
+val NightTokens = AppColors(
+    dark = true,
+    bg = Color(0xFF000000),
+    surface = Color(0xFF000000),
+    ink = Color(0xFFE6B183),
+    muted = Color(0xFFAD8059),
+    line = Color(0xFF3A2816),
+    soft = Color(0xFF120C06),
+    accent = Color(0xFFF2994A),
+    onAccent = Color(0xFF1A0E04),
+    accentSoft = Color(0xFF2E1607),
+    off = Color(0xFF3A2A1C),
+    knob = Color(0xFF8C6B4E),
+    danger = Color(0xFFFF8A7A),
+    warn = Color(0xFFE8B04A),
+)
+
+/** The night display's clock. */
+val NightGlow = Color(0xFFE08C45)
+
+/** End of a sunrise and the good-morning screen after it. */
+val DayTokens = AppColors(
+    dark = false,
+    bg = Color(0xFFFFFDF8),
+    surface = Color(0xFFFFFDF8),
+    ink = Color(0xFF2A1A0E),
+    muted = Color(0xFF6B5644),
+    line = Color(0xFFEADCCB),
+    soft = Color(0xFFF6EBDD),
+    accent = Color(0xFFF2994A),
+    onAccent = Color(0xFF1A0E04),
+    accentSoft = Color(0xFFF6EBDD),
+    off = Color(0xFFD9C9B8),
+    knob = Color(0xFFFFFFFF),
+    danger = Color(0xFFB3261E),
+    warn = Color(0xFF8A5A00),
+)
+
+/** Rain bars and chances on the good-morning screen. */
+fun rainColor(t: AppColors): Color = if (t.dark) Color(0xFF7FA7CF) else Color(0xFF3F6A94)
+
 val LocalAppColors = staticCompositionLocalOf { LightTokens }
 
 /** The design tokens of the current theme. */

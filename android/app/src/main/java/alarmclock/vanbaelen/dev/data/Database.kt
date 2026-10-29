@@ -63,12 +63,14 @@ data class PendingEditRow(
     val serverJson: String? = null,
 )
 
-/** Alarm sound and vibration chosen on this phone; never sent to the server. */
+/** Alarm sound, vibration and sunrise chosen on this phone; never sent to the server. */
 @Entity(tableName = "alarm_sounds")
 data class AlarmSoundRow(
     @PrimaryKey val alarmId: String,
     val soundUri: String?,
     @ColumnInfo(defaultValue = "1") val vibrate: Boolean = true,
+    /** Minutes the night display brightens like a sunrise before the alarm; 0 = off. */
+    @ColumnInfo(defaultValue = "0") val sunrise: Int = 0,
 )
 
 @Entity(tableName = "missed_alarms")
@@ -197,7 +199,7 @@ interface AppDao {
         AlarmRow::class, SyncStateRow::class, PendingReportRow::class, PendingEditRow::class,
         AlarmSoundRow::class, MissedAlarmRow::class, ScriptRow::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -211,7 +213,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** 2 → 3: per-alarm sunrise (off by default). */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE alarm_sounds ADD COLUMN sunrise INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun create(context: Context): AppDatabase =
-            Room.databaseBuilder(context, AppDatabase::class.java, "alarm_actions.db").addMigrations(MIGRATION_1_2).build()
+            Room.databaseBuilder(context, AppDatabase::class.java, "alarm_actions.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
     }
 }

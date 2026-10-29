@@ -30,8 +30,14 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** One row of the alarm list: the alarm, its next ring on this phone and a running snooze. */
-data class AlarmItem(val effective: EffectiveAlarm, val next: PlannedRing?, val snoozed: PlannedRing?, val vibrate: Boolean = true) {
+/** One row of the alarm list: the alarm, its next ring on this phone, a running snooze and the phone's own choices. */
+data class AlarmItem(
+    val effective: EffectiveAlarm,
+    val next: PlannedRing?,
+    val snoozed: PlannedRing?,
+    val vibrate: Boolean = true,
+    val sunrise: Int = 0,
+) {
     val alarm: Alarm get() = effective.alarm
 }
 
@@ -40,15 +46,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val account = app.prefs.account
     val settings = app.prefs.settings
     val ringing = app.engine.ringing
+    /** Every scheduled ring (normal and snoozed), soonest first. */
+    val scheduled = app.engine.scheduled
     val updateState = app.updater.state
 
-    val items: StateFlow<List<AlarmItem>> = combine(app.repository.alarms, app.engine.scheduled, app.repository.silentVibration) { alarms, scheduled, silent ->
+    val items: StateFlow<List<AlarmItem>> = combine(app.repository.alarms, app.engine.scheduled, app.repository.local) { alarms, scheduled, local ->
         alarms.map { e ->
             AlarmItem(
                 e,
                 scheduled.firstOrNull { it.alarmId == e.alarm.id && !it.snooze },
                 scheduled.firstOrNull { it.alarmId == e.alarm.id && it.snooze },
-                e.alarm.id !in silent,
+                local[e.alarm.id]?.vibrate ?: true,
+                local[e.alarm.id]?.sunrise ?: 0,
             )
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())

@@ -10,11 +10,13 @@ import alarmclock.vanbaelen.dev.ui.screens.HealthScreen
 import alarmclock.vanbaelen.dev.ui.screens.NightScreen
 import alarmclock.vanbaelen.dev.ui.screens.SettingsScreen
 import alarmclock.vanbaelen.dev.ui.screens.SetupScreen
+import alarmclock.vanbaelen.dev.ui.screens.readBattery
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
+import android.view.OrientationEventListener
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -47,15 +49,35 @@ class MainActivity : ComponentActivity() {
     private var nav: NavHostController? = null
     private var pendingIntent: Intent? = null
 
+    /** The phone stands on its long side (landscape), as on a nightstand. */
+    private var onSide = false
+
     private val powerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            val s = vm.settings.value
-            if (!s.nightAutoStart || !vm.account.value.loggedIn) return
-            val start = runCatching { LocalTime.parse(s.nightStart) }.getOrNull() ?: return
-            val end = runCatching { LocalTime.parse(s.nightEnd) }.getOrNull() ?: return
-            if (NightWindow.contains(LocalTime.now(), start, end)) {
-                nav?.navigate(Routes.NIGHT) { launchSingleTop = true }
+            if (onSide) maybeStartNight()
+        }
+    }
+
+    private val orientationListener by lazy {
+        object : OrientationEventListener(this) {
+            override fun onOrientationChanged(degrees: Int) {
+                if (degrees == ORIENTATION_UNKNOWN) return
+                val side = degrees in 60..120 || degrees in 240..300
+                if (side && !onSide) maybeStartNight()
+                onSide = side
             }
+        }
+    }
+
+    /** Start by itself (AFR-NGT-01): charging, turned on its side, inside the time window, with the app open. */
+    private fun maybeStartNight() {
+        val s = vm.settings.value
+        if (!s.nightAutoStart || !vm.account.value.loggedIn) return
+        if (!readBattery(this, null).plugged) return
+        val start = runCatching { LocalTime.parse(s.nightStart) }.getOrNull() ?: return
+        val end = runCatching { LocalTime.parse(s.nightEnd) }.getOrNull() ?: return
+        if (NightWindow.contains(LocalTime.now(), start, end)) {
+            nav?.navigate(Routes.NIGHT) { launchSingleTop = true }
         }
     }
 
@@ -88,9 +110,12 @@ class MainActivity : ComponentActivity() {
                     composable(Routes.SETTINGS) { SettingsScreen(vm, controller) }
                     composable(Routes.HEALTH) { HealthScreen(guide = false, onDone = { controller.popBackStack() }) }
                     composable(Routes.NIGHT) {
-                        NightScreen(vm, onExit = { controller.popBackStack() }, onRinging = {
-                            startActivity(RingingActivity.intent(this@MainActivity))
-                        })
+                        NightScreen(
+                            vm,
+                            onExit = { controller.popBackStack() },
+                            onRinging = { startActivity(RingingActivity.intent(this@MainActivity)) },
+                            onSettings = { controller.navigate(Routes.SETTINGS) },
+                        )
                     }
                 }
             }
@@ -119,11 +144,14 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         ContextCompat.registerReceiver(this, powerReceiver, IntentFilter(Intent.ACTION_POWER_CONNECTED), ContextCompat.RECEIVER_NOT_EXPORTED)
+        // onSide is kept while paused: coming back to a phone that still lies on its side starts nothing.
+        if (orientationListener.canDetectOrientation()) orientationListener.enable()
         vm.sync()
     }
 
     override fun onPause() {
         unregisterReceiver(powerReceiver)
+        orientationListener.disable()
         super.onPause()
     }
 }
