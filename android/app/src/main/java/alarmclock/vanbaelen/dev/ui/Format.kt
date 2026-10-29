@@ -3,6 +3,7 @@ package alarmclock.vanbaelen.dev.ui
 import alarmclock.vanbaelen.dev.R
 import alarmclock.vanbaelen.dev.core.ActionSummary
 import alarmclock.vanbaelen.dev.core.DraftError
+import alarmclock.vanbaelen.dev.core.HaState
 import alarmclock.vanbaelen.dev.core.Limits
 import alarmclock.vanbaelen.dev.core.Timing
 import alarmclock.vanbaelen.dev.core.UrlError
@@ -11,6 +12,7 @@ import alarmclock.vanbaelen.dev.data.Problem
 import android.content.Context
 import android.text.format.DateFormat
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -116,6 +118,98 @@ object Format {
         Problem.NOT_FOUND -> context.getString(R.string.not_found)
         Problem.REJECTED -> message?.takeIf { it.isNotBlank() } ?: context.getString(R.string.generic_error)
         Problem.ERROR -> context.getString(R.string.generic_error)
+    }
+
+    /** The night display's clock: like [time], but without AM/PM so it fits the big type. */
+    fun clock(context: Context, t: LocalTime): String =
+        DateTimeFormatter.ofPattern(if (DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm", locale(context)).format(t)
+
+    /** Time of [epochMs] in the phone's zone. */
+    fun time(context: Context, epochMs: Long): String =
+        time(context, Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()).toLocalTime())
+
+    /** A ring within a day as its time, a later one with the day ("Sat 08:15"). */
+    fun ring(context: Context, epochMs: Long, now: Long = System.currentTimeMillis()): String =
+        if (epochMs - now < 86_400_000L) time(context, epochMs) else next(context, epochMs)
+
+    /** "Today", "Tomorrow" or the weekday. */
+    fun dayTitle(context: Context, date: LocalDate, today: LocalDate = LocalDate.now()): String = when (date) {
+        today -> context.getString(R.string.today)
+        today.plusDays(1) -> context.getString(R.string.tomorrow)
+        else -> date.dayOfWeek.getDisplayName(TextStyle.FULL, locale(context)).replaceFirstChar { it.titlecase(locale(context)) }
+    }
+
+    /** "Thursday 29 October". */
+    fun longDate(context: Context, date: LocalDate): String =
+        DateTimeFormatter.ofPattern("EEEE d MMMM", locale(context)).format(date).replaceFirstChar { it.titlecase(locale(context)) }
+
+    fun greeting(context: Context, hour: Int): String = context.getString(
+        when (hour) {
+            in 4..11 -> R.string.good_morning
+            in 12..17 -> R.string.good_afternoon
+            else -> R.string.good_evening
+        },
+    )
+
+    /** A temperature rounded to whole degrees: "12°". */
+    fun degrees(value: Double?): String = value?.let { "${Math.round(it)}°" } ?: "–"
+
+    /** A room temperature with one decimal: "19.5°". */
+    fun degreesFine(context: Context, value: Double): String = String.format(locale(context), "%.1f°", value)
+
+    /** Home Assistant weather condition (`partlycloudy`, `rainy`, …) in words. */
+    fun condition(context: Context, condition: String?): String = context.getString(
+        when (condition) {
+            "clear-night" -> R.string.weather_clear_night
+            "cloudy" -> R.string.weather_cloudy
+            "fog" -> R.string.weather_fog
+            "hail" -> R.string.weather_hail
+            "lightning", "lightning-rainy" -> R.string.weather_lightning
+            "partlycloudy" -> R.string.weather_partlycloudy
+            "pouring" -> R.string.weather_pouring
+            "rainy" -> R.string.weather_rainy
+            "snowy" -> R.string.weather_snowy
+            "snowy-rainy" -> R.string.weather_snowy_rainy
+            "sunny" -> R.string.weather_sunny
+            "windy", "windy-variant" -> R.string.weather_windy
+            else -> R.string.weather_unknown
+        },
+    )
+
+    /** An entity's state for the home widget: "Off", "Locked", "Heating · 18°", "21.5 °C". */
+    fun entityState(context: Context, s: HaState): String {
+        if (!s.available) return context.getString(R.string.state_unavailable)
+        val onOff = { context.getString(if (s.state == "on") R.string.state_on else R.string.state_off) }
+        return when (s.domain) {
+            "light", "switch", "fan", "input_boolean" -> onOff()
+            "lock" -> when (s.state) {
+                "locked" -> context.getString(R.string.state_locked)
+                "unlocked" -> context.getString(R.string.state_unlocked)
+                "open" -> context.getString(R.string.state_open)
+                else -> s.state
+            }
+            "cover" -> when (s.state) {
+                "open", "opening" -> context.getString(R.string.state_open)
+                "closed", "closing" -> context.getString(R.string.state_closed)
+                else -> s.state
+            }
+            "binary_sensor" -> if (s.text("device_class") in setOf("door", "window", "opening", "garage_door")) {
+                context.getString(if (s.state == "on") R.string.state_open else R.string.state_closed)
+            } else {
+                onOff()
+            }
+            "climate" -> {
+                val mode = when (s.state) {
+                    "off" -> return context.getString(R.string.state_off)
+                    "heat" -> context.getString(R.string.state_heating)
+                    "cool" -> context.getString(R.string.state_cooling)
+                    else -> context.getString(R.string.state_auto)
+                }
+                s.number("temperature")?.let { "$mode · ${degrees(it)}" } ?: mode
+            }
+            "sensor" -> s.state + (s.text("unit_of_measurement")?.let { " $it" } ?: "")
+            else -> s.state
+        }
     }
 
     fun urlError(context: Context, error: UrlError): String = context.getString(

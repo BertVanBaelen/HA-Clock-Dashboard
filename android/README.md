@@ -133,9 +133,10 @@ base64 -w0 release.jks > release.jks.base64   # value for the GitHub secret
 app/src/main/java/alarmclock/vanbaelen/dev/
   core/     plain Kotlin, unit-tested: schedule port, models, editor validation, timeline geometry, sync merge,
             ring planning, report/update/version policies
-  data/     Room database, encrypted token store, OAuth, API client, repository, sync engine
+  data/     Room database, encrypted token store, OAuth, API client, repository, sync engine,
+            Home Assistant REST client and data for the night display widgets
   alarm/    AlarmManager engine (device-protected storage, works before first unlock),
-            ringing service + activity, receivers, report queue, notifications
+            ringing service, wake-up screen (sunrise, snooze, good morning), receivers, report queue, notifications
   work/     WorkManager: periodic sync, report retry
   update/   in-app updater (download, SHA-256, PackageInstaller)
   ui/       Compose screens (docs/design.md): setup, alarm list + detail timeline, conflicts, settings,

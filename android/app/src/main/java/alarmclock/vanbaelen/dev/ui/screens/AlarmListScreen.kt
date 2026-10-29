@@ -542,7 +542,8 @@ private fun AlarmCard(item: AlarmItem, vm: MainViewModel, anchors: MorphAnchors,
             }
             Text(
                 "${Format.days(context, alarm.days)} · ${Format.summary(context, ActionSummary.of(alarm.actions))}" +
-                    if (item.vibrate) "" else " · " + stringResource(R.string.no_vibration),
+                    (if (item.vibrate) "" else " · " + stringResource(R.string.no_vibration)) +
+                    if (item.sunrise > 0) " · " + stringResource(R.string.sunrise_chip, item.sunrise) else "",
                 style = AppType.secondary,
                 color = t.muted,
                 modifier = Modifier.padding(top = 6.dp),

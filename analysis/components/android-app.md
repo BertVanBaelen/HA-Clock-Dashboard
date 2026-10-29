@@ -11,7 +11,7 @@
 - Exact alarms, full-screen ringing over the lock screen, ringing through Do Not Disturb; snooze and dismiss.
 - Reports dismiss/snooze/timed-out to HA (queued when offline).
 - Alarm editor with the same actions as the panel.
-- **Night display** (bedside clock mode) from the local copy.
+- **Night display** (bedside clock mode) from the local copy, with widgets (weather, morning plan, bedroom, calendar, battery) and a per-alarm **sunrise** that brightens the screen before the alarm. The HA widgets read Home Assistant's own REST API at the HA URL with the user's login; ringing never depends on them.
 - **In-app updater** that installs new versions from the app add-on.
 
 ## Rules
@@ -27,7 +27,8 @@
 | **Fully native** app with an **in-app updater**; a PWA was rejected | A PWA cannot ring at an exact time while closed, show a full-screen alarm over the lock screen, or ring through Do Not Disturb. Sideloaded updates never need an uninstall as long as the signing key is kept |
 | The APK contains no secrets or server address | The same APK is safe to publish anywhere |
 | **Night display** (bedside clock mode), priority Should | Wanted by the user; works offline from the local copy |
-| Sound and vibration stay local; snooze length comes from the server | Sounds are device files and vibrating is a phone setting; snooze is part of the alarm |
+| Sound, vibration and sunrise stay local; snooze length comes from the server | Sounds are device files, and vibrating and the screen's sunrise are phone settings; snooze is part of the alarm |
+| Night display widgets call HA directly, not through the add-on | No add-on change is needed and the user's own HA permissions apply; the night display is used at home, where the HA URL is reachable |
 | API calls with the HA access token to the external API URL, not through ingress | Works through the user's Cloudflare tunnel with an own hostname, and avoids Supervisor ingress calls a non-admin user may not be allowed to make |
 
 ## Requirements and features

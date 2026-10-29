@@ -1,5 +1,6 @@
 package alarmclock.vanbaelen.dev.data
 
+import alarmclock.vanbaelen.dev.core.NightWidget
 import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,14 @@ data class LocalSettings(
     val nightStart: String = "22:00",
     val nightEnd: String = "07:00",
     val guideDone: Boolean = false,
+    /** Night display: widgets shown on tap, the dimmer, and the Home Assistant entities they read. */
+    val nightWidgets: Set<NightWidget> = NightWidget.DEFAULT,
+    val nightDimmer: Boolean = false,
+    val weatherEntity: String? = null,
+    val calendarEntity: String? = null,
+    val roomTemperatureEntity: String? = null,
+    val nightLightEntity: String? = null,
+    val homeEntities: List<String> = emptyList(),
 )
 
 class AppPrefs(context: Context) {
@@ -68,7 +77,16 @@ class AppPrefs(context: Context) {
         nightStart = prefs.getString("night_start", null) ?: "22:00",
         nightEnd = prefs.getString("night_end", null) ?: "07:00",
         guideDone = prefs.getBoolean("guide_done", false),
+        nightWidgets = prefs.getString("night_widgets", null)?.let { NightWidget.parse(list(it)) } ?: NightWidget.DEFAULT,
+        nightDimmer = prefs.getBoolean("night_dimmer", false),
+        weatherEntity = prefs.getString("night_weather", null),
+        calendarEntity = prefs.getString("night_calendar", null),
+        roomTemperatureEntity = prefs.getString("night_room_temperature", null),
+        nightLightEntity = prefs.getString("night_light", null),
+        homeEntities = list(prefs.getString("night_home", null)),
     )
+
+    private fun list(value: String?): List<String> = value?.split(',')?.filter { it.isNotBlank() }.orEmpty()
 
     @Synchronized
     fun updateAccount(transform: (Account) -> Account) {
@@ -93,6 +111,13 @@ class AppPrefs(context: Context) {
             .putString("night_start", s.nightStart)
             .putString("night_end", s.nightEnd)
             .putBoolean("guide_done", s.guideDone)
+            .putString("night_widgets", s.nightWidgets.joinToString(",") { it.id })
+            .putBoolean("night_dimmer", s.nightDimmer)
+            .putString("night_weather", s.weatherEntity)
+            .putString("night_calendar", s.calendarEntity)
+            .putString("night_room_temperature", s.roomTemperatureEntity)
+            .putString("night_light", s.nightLightEntity)
+            .putString("night_home", s.homeEntities.joinToString(","))
             .commit()
         _settings.value = s
     }

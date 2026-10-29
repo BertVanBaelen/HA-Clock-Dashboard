@@ -83,9 +83,25 @@ Record for each run: device, Android version, app version, pass/fail and notes.
 - [ ] A corrupted APK (checksum mismatch) is refused.
 
 ## 8. Night display
-- [ ] Opens black and dimmed. The screen stays on and the clock moves slightly every few minutes.
-- [ ] Auto-start: plug in the charger inside the time window while the app is open.
-- [ ] A ringing alarm takes over the night display.
+- [ ] Opens black, dimmed and in landscape, without status and navigation bars. The screen stays on and the clock moves slightly every few minutes.
+- [ ] The next alarm shows with "in 7 h 12 min"; with actions, the line with dots and the first action / alarm / last action times.
+- [ ] Tap or swipe up: the clock shrinks to the top left and the widget cards appear; tap, swipe down or Hide goes back. Back leaves the night display.
+- [ ] Dimmer makes everything dimmer and is remembered next time.
+- [ ] Edit widgets: switching widgets off and on changes the cards; Start by itself switches the setting.
+- [ ] Settings → Night display: choose a weather entity, a calendar, a bedroom temperature, a night light and up to three status entities. The cards show their data; the Night light switch turns the light on and off in HA.
+- [ ] Without entities, the HA cards say where to choose them. With HA unreachable (Wi-Fi off), they keep their values or say HA is not reachable, and the clock and alarm still work.
+- [ ] Skip tomorrow in the Next alarm card: the alarm dims, the alarm line says "Skipped · next alarm …", and the list shows the skip. Switching it off undoes it.
+- [ ] Auto-start: with Start by itself on, inside the time window and the app open, charge the phone and stand it on its side. Leaving the night display while it stays on its side does not start it again.
+- [ ] A ringing alarm takes over the night display. After Stop, the night display is closed; after snooze, it stays.
+
+## 8a. Sunrise and wake-up screen
+- [ ] Alarm detail: the Sunrise chip and row offer Off / 10 / 20 / 30 min; Save keeps it; the list shows " · Sunrise 20 min".
+- [ ] An alarm with a 10 min sunrise and the night display open: from 10 min before, the screen slowly turns from black via orange to warm white and gets brighter. At the alarm time the wake-up screen opens bright.
+- [ ] The same alarm without the night display: the wake-up screen brightens over about 30 seconds.
+- [ ] An alarm without a sunrise: the wake-up screen is black with amber text, at normal brightness.
+- [ ] Swipe up (or tap the hint) snoozes: the screen dims, "Snoozing until …", swipe up again adds one more snooze. Stop there dismisses the alarm.
+- [ ] Stop: the good-morning screen with the date and stop time, today's weather by the hour (when a weather entity is set) and the after-dismiss actions; Done closes it, and it closes by itself after 10 minutes.
+- [ ] After a reboot, before the first unlock: the alarm rings with its sunrise; the good-morning screen shows without weather.
 
 ## 9. Language and appearance
 - [ ] Phone language Dutch: all texts are in Dutch. Phone language English: all texts are in English.
