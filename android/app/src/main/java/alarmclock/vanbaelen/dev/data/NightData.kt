@@ -30,8 +30,8 @@ data class WeatherInfo(
     val sunset: Instant?,
 )
 
-/** The home widget: room temperature, night light and a few status rows. */
-data class HomeInfo(val temperature: HaState?, val nightLight: HaState?, val rows: List<HaState>)
+/** The Bedroom widget: night lamp, heating (thermostat), room temperature and a few status rows. */
+data class HomeInfo(val lamp: HaState?, val heating: HaState?, val temperature: HaState?, val rows: List<HaState>)
 
 /** Timed events of [date], soonest first. */
 data class AgendaInfo(val date: LocalDate, val events: List<CalendarEvent>)
@@ -66,7 +66,7 @@ class NightData(private val app: App) {
         }
         if (NightWidget.WEATHER in s.nightWidgets) attempt { _weather.value = s.weatherEntity?.let { readWeather(it) } }
         if (NightWidget.HOME in s.nightWidgets) attempt { _home.value = readHome(s) }
-        if (NightWidget.CALENDAR in s.nightWidgets) attempt { _agenda.value = s.calendarEntity?.let { readAgenda(it, date, zone) } }
+        if (NightWidget.CALENDAR in s.nightWidgets) attempt { _agenda.value = s.calendarEntities.takeIf { it.isNotEmpty() }?.let { readAgenda(it, date, zone) } }
         _problem.value = problem
     }
 
@@ -81,14 +81,64 @@ class NightData(private val app: App) {
         }
     }
 
-    /** Switches the night light; the widget shows the new state right away. */
-    suspend fun setSwitch(entityId: String, on: Boolean): Problem? = try {
-        app.ha.call(entityId.substringBefore('.'), if (on) "turn_on" else "turn_off", entityId)
-        val updated = app.ha.state(entityId)
-        _home.value = _home.value?.let { h -> if (updated != null && h.nightLight?.entityId == entityId) h.copy(nightLight = updated) else h }
+    /** Sets the night lamp to [percent] (0 = off; a switch goes on above 0); the widget shows the new state right away. */
+    suspend fun setLamp(entityId: String, percent: Int): Problem? = try {
+        val domain = entityId.substringBefore('.')
+        when {
+            percent <= 0 -> app.ha.call(domain, "turn_off", entityId)
+            domain == "light" -> app.ha.call(domain, "turn_on", entityId, mapOf("brightness_pct" to percent))
+            else -> app.ha.call(domain, "turn_on", entityId)
+        }
+        reread(entityId)
         null
     } catch (e: Exception) {
         problemOf(e)
+    }
+
+    /** Sets the thermostat's target temperature. */
+    suspend fun setHeating(entityId: String, target: Double): Problem? = try {
+        app.ha.call("climate", "set_temperature", entityId, mapOf("temperature" to target))
+        reread(entityId)
+        null
+    } catch (e: Exception) {
+        problemOf(e)
+    }
+
+    /**
+     * "All lights off": every light that is on, and the night lamp when it is a switch. Returns
+     * what was on, for the undo.
+     */
+    suspend fun allLightsOff(lamp: String?): Result<List<String>> = runCatching {
+        val on = app.ha.states().filter { it.state == "on" && (it.domain == "light" || it.entityId == lamp) }.map { it.entityId }
+        switch(on, false)
+        lamp?.let { reread(it) }
+        on
+    }
+
+    /** Turns [entityIds] back on (the undo of [allLightsOff]); lights come back at their last brightness. */
+    suspend fun turnOn(entityIds: List<String>, lamp: String?): Problem? = try {
+        switch(entityIds, true)
+        lamp?.let { reread(it) }
+        null
+    } catch (e: Exception) {
+        problemOf(e)
+    }
+
+    private suspend fun switch(entityIds: List<String>, on: Boolean) {
+        entityIds.groupBy { it.substringBefore('.') }.forEach { (domain, ids) ->
+            app.ha.call(domain, if (on) "turn_on" else "turn_off", ids)
+        }
+    }
+
+    /** Reads one of the Bedroom widget's entities again after changing it. */
+    private suspend fun reread(entityId: String) {
+        val updated = app.ha.state(entityId) ?: return
+        _home.value = _home.value?.let { h ->
+            h.copy(
+                lamp = if (h.lamp?.entityId == entityId) updated else h.lamp,
+                heating = if (h.heating?.entityId == entityId) updated else h.heating,
+            )
+        }
     }
 
     /** Every entity, for choosing the widgets' entities in Settings. */
@@ -113,18 +163,22 @@ class NightData(private val app: App) {
     }
 
     private suspend fun readHome(s: LocalSettings): HomeInfo? {
-        if (s.roomTemperatureEntity == null && s.nightLightEntity == null && s.homeEntities.isEmpty()) return null
+        if (!s.hasBedroom) return null
         return HomeInfo(
+            lamp = s.nightLightEntity?.let { app.ha.state(it) },
+            heating = s.heatingEntity?.let { app.ha.state(it) },
             temperature = s.roomTemperatureEntity?.let { app.ha.state(it) },
-            nightLight = s.nightLightEntity?.let { app.ha.state(it) },
             rows = s.homeEntities.mapNotNull { app.ha.state(it) },
         )
     }
 
-    private suspend fun readAgenda(entityId: String, date: LocalDate, zone: ZoneId): AgendaInfo {
+    /** Events of every chosen calendar together; a calendar that fails is left out unless they all fail. */
+    private suspend fun readAgenda(entityIds: List<String>, date: LocalDate, zone: ZoneId): AgendaInfo {
         val start = date.atStartOfDay(zone).toInstant()
         val end = date.plusDays(1).atStartOfDay(zone).toInstant()
-        val events = app.ha.events(entityId, start, end)
+        val results = entityIds.map { id -> runCatching { app.ha.events(id, start, end) } }
+        if (results.all { it.isFailure }) throw results.first().exceptionOrNull()!!
+        val events = results.flatMap { it.getOrDefault(emptyList()) }
             .filter { e -> e.startsAt?.let { !it.isBefore(start) && it.isBefore(end) } == true }
             .sortedBy { it.startsAt }
         return AgendaInfo(date, events)

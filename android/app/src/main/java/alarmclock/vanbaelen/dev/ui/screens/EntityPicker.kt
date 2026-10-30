@@ -40,32 +40,36 @@ import androidx.compose.ui.unit.dp
 /** The Home Assistant entities the night display widgets read, chosen in Settings. */
 enum class EntitySlot(@StringRes val title: Int, val max: Int) {
     WEATHER(R.string.entity_weather, 1),
-    CALENDAR(R.string.entity_calendar, 1),
-    ROOM_TEMPERATURE(R.string.entity_room_temperature, 1),
+    CALENDAR(R.string.entity_calendar, NightPlan.CALENDARS),
     NIGHT_LIGHT(R.string.entity_night_light, 1),
+    HEATING(R.string.entity_heating, 1),
+    ROOM_TEMPERATURE(R.string.entity_room_temperature, 1),
     HOME(R.string.entity_home, NightPlan.HOME_ROWS);
 
     fun read(s: LocalSettings): List<String> = when (this) {
         WEATHER -> listOfNotNull(s.weatherEntity)
-        CALENDAR -> listOfNotNull(s.calendarEntity)
-        ROOM_TEMPERATURE -> listOfNotNull(s.roomTemperatureEntity)
+        CALENDAR -> s.calendarEntities
         NIGHT_LIGHT -> listOfNotNull(s.nightLightEntity)
+        HEATING -> listOfNotNull(s.heatingEntity)
+        ROOM_TEMPERATURE -> listOfNotNull(s.roomTemperatureEntity)
         HOME -> s.homeEntities
     }
 
     fun write(s: LocalSettings, ids: List<String>): LocalSettings = when (this) {
         WEATHER -> s.copy(weatherEntity = ids.firstOrNull())
-        CALENDAR -> s.copy(calendarEntity = ids.firstOrNull())
-        ROOM_TEMPERATURE -> s.copy(roomTemperatureEntity = ids.firstOrNull())
+        CALENDAR -> s.copy(calendarEntities = ids.take(max))
         NIGHT_LIGHT -> s.copy(nightLightEntity = ids.firstOrNull())
+        HEATING -> s.copy(heatingEntity = ids.firstOrNull())
+        ROOM_TEMPERATURE -> s.copy(roomTemperatureEntity = ids.firstOrNull())
         HOME -> s.copy(homeEntities = ids.take(max))
     }
 
     fun accepts(e: HaState): Boolean = when (this) {
         WEATHER -> e.domain == "weather"
         CALENDAR -> e.domain == "calendar"
-        ROOM_TEMPERATURE -> e.domain == "climate" || (e.domain == "sensor" && e.text("device_class") == "temperature")
         NIGHT_LIGHT -> e.domain in setOf("light", "switch", "input_boolean")
+        HEATING -> e.domain == "climate"
+        ROOM_TEMPERATURE -> e.domain == "climate" || (e.domain == "sensor" && e.text("device_class") == "temperature")
         HOME -> e.domain in setOf("light", "switch", "lock", "climate", "cover", "binary_sensor", "fan", "input_boolean", "sensor")
     }
 }

@@ -7,7 +7,9 @@ import alarmclock.vanbaelen.dev.core.HaState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.HttpUrl
@@ -64,9 +66,16 @@ class HomeAssistant(private val http: OkHttpClient, private val auth: AuthManage
         return HaJson.decodeFromString(ListSerializer(CalendarEvent.serializer()), send("GET", url))
     }
 
-    /** Calls `<domain>.<service>` for one entity, e.g. `light.turn_on`. */
-    suspend fun call(domain: String, service: String, entityId: String) {
-        val body = buildJsonObject { put("entity_id", entityId) }
+    /** Calls `<domain>.<service>` for one entity, e.g. `light.turn_on`, with service [data] such as `brightness_pct`. */
+    suspend fun call(domain: String, service: String, entityId: String, data: Map<String, Number> = emptyMap()) =
+        call(domain, service, listOf(entityId), data)
+
+    /** Calls `<domain>.<service>` for several entities at once. */
+    suspend fun call(domain: String, service: String, entityIds: List<String>, data: Map<String, Number> = emptyMap()) {
+        val body = buildJsonObject {
+            put("entity_id", JsonArray(entityIds.map(::JsonPrimitive)))
+            data.forEach { (key, value) -> put(key, value) }
+        }
         send("POST", api("services").addPathSegment(domain).addPathSegment(service).build(), body.toString())
     }
 

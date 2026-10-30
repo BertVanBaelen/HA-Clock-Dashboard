@@ -145,4 +145,49 @@ class NightTest {
         assertNull(state.text("list"))
         assertNull(state.number("missing"))
     }
+
+    private fun state(json: String) = HaJson.decodeFromString(HaState.serializer(), json)
+
+    @Test
+    fun bedroomLampInFivePercentSteps() {
+        val dim = state("""{"entity_id":"light.lamp","state":"on","attributes":{"brightness":102,"supported_color_modes":["brightness"]}}""")
+        assertTrue(Bedroom.dimmable(dim))
+        assertEquals(40, Bedroom.lampPercent(dim))
+        assertEquals(0, Bedroom.lampPercent(state("""{"entity_id":"light.lamp","state":"off"}""")))
+        // At its lowest brightness a lamp that is on never reads as off.
+        assertEquals(5, Bedroom.lampPercent(state("""{"entity_id":"light.lamp","state":"on","attributes":{"brightness":1}}""")))
+        assertEquals(70, Bedroom.lampAt(0.69f, dimmable = true))
+        assertEquals(0, Bedroom.lampAt(-0.2f, dimmable = true))
+        assertEquals(100, Bedroom.lampAt(1.3f, dimmable = true))
+
+        val onOff = state("""{"entity_id":"light.lamp","state":"on","attributes":{"supported_color_modes":["onoff"]}}""")
+        val plug = state("""{"entity_id":"switch.lamp","state":"on"}""")
+        assertFalse(Bedroom.dimmable(onOff))
+        assertFalse(Bedroom.dimmable(plug))
+        assertEquals(100, Bedroom.lampPercent(plug))
+        assertEquals(0, Bedroom.lampAt(0.4f, dimmable = false))
+        assertEquals(100, Bedroom.lampAt(0.6f, dimmable = false))
+    }
+
+    @Test
+    fun bedroomHeatingRangeAndSteps() {
+        val celsius = state("""{"entity_id":"climate.bedroom","state":"heat","attributes":{"temperature":19.5,"min_temp":7,"max_temp":35,"current_temperature":19.1}}""")
+        assertEquals(19.5, Bedroom.target(celsius)!!, 0.0)
+        val range = Bedroom.heatRange(celsius, 19.5)
+        assertEquals(15.0, range.start, 0.0)
+        assertEquals(24.0, range.endInclusive, 0.0)
+        assertEquals(0.5f, Bedroom.heatFraction(19.5, range), 0.0001f)
+        assertEquals(19.5, Bedroom.heatAt(0.5f, range, 0.5), 0.0)
+        assertEquals(17.0, Bedroom.heatAt(0.22f, range, 0.5), 0.0)
+        assertEquals(24.0, Bedroom.heatAt(2f, range, 0.5), 0.0)
+        // A target outside 15–24 widens the range so the slider can show it.
+        assertEquals(26.0, Bedroom.heatRange(celsius, 26.0).endInclusive, 0.0)
+        // Fahrenheit thermostats, and their own step.
+        val fahrenheit = state("""{"entity_id":"climate.bedroom","state":"heat","attributes":{"temperature":68,"min_temp":45,"max_temp":95,"target_temp_step":1}}""")
+        assertEquals(59.0..76.0, Bedroom.heatRange(fahrenheit, 68.0))
+        assertEquals(1.0, Bedroom.step(fahrenheit), 0.0)
+        assertEquals(0.5, Bedroom.step(celsius), 0.0)
+        // Range mode (heat_cool) has no single target.
+        assertNull(Bedroom.target(state("""{"entity_id":"climate.bedroom","state":"heat_cool","attributes":{"target_temp_low":18,"target_temp_high":24}}""")))
+    }
 }

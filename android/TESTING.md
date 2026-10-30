@@ -87,8 +87,11 @@ Record for each run: device, Android version, app version, pass/fail and notes.
 - [ ] The next alarm shows with "in 7 h 12 min"; with actions, the line with dots and the first action / alarm / last action times.
 - [ ] Tap or swipe up: the clock shrinks to the top left and the widget cards appear; tap, swipe down or Hide goes back. Back leaves the night display.
 - [ ] Dimmer makes everything dimmer and is remembered next time.
+- [ ] Do not disturb: the first tap opens the system access screen; after allowing it, the pill turns Do Not Disturb on and off (also visible in quick settings). An alarm still rings while it is on.
 - [ ] Edit widgets: switching widgets off and on changes the cards; Start by itself switches the setting.
-- [ ] Settings → Night display: choose a weather entity, a calendar, a bedroom temperature, a night light and up to three status entities. The cards show their data; the Night light switch turns the light on and off in HA.
+- [ ] Settings → Night display: choose a weather entity, up to six calendars, a night lamp, a thermostat, a bedroom temperature and up to three status entities. The cards show their data; First up shows the earliest event of all chosen calendars.
+- [ ] Bedroom widget (first, twice as wide): sliding the Night lamp row dims the light in HA in 5 % steps with a tick per step (a switch goes off / on); 0 turns it off. Sliding Heating sets the thermostat target; "Now" shows the room. A vertical swipe on a row still shows / hides the widgets.
+- [ ] All lights off turns off every light in HA; tapping again within a few seconds (tap to undo) turns them back on.
 - [ ] Without entities, the HA cards say where to choose them. With HA unreachable (Wi-Fi off), they keep their values or say HA is not reachable, and the clock and alarm still work.
 - [ ] Skip tomorrow in the Next alarm card: the alarm dims, the alarm line says "Skipped · next alarm …", and the list shows the skip. Switching it off undoes it.
 - [ ] Auto-start: with Start by itself on, inside the time window and the app open, charge the phone and stand it on its side. Leaving the night display while it stays on its side does not start it again.

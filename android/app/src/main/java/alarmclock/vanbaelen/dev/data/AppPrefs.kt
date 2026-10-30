@@ -31,11 +31,16 @@ data class LocalSettings(
     val nightWidgets: Set<NightWidget> = NightWidget.DEFAULT,
     val nightDimmer: Boolean = false,
     val weatherEntity: String? = null,
-    val calendarEntity: String? = null,
+    val calendarEntities: List<String> = emptyList(),
     val roomTemperatureEntity: String? = null,
+    val heatingEntity: String? = null,
     val nightLightEntity: String? = null,
     val homeEntities: List<String> = emptyList(),
-)
+) {
+    /** The Bedroom widget has at least one entity to show. */
+    val hasBedroom: Boolean
+        get() = nightLightEntity != null || heatingEntity != null || roomTemperatureEntity != null || homeEntities.isNotEmpty()
+}
 
 class AppPrefs(context: Context) {
     private val prefs = context.getSharedPreferences("app", Context.MODE_PRIVATE)
@@ -80,8 +85,9 @@ class AppPrefs(context: Context) {
         nightWidgets = prefs.getString("night_widgets", null)?.let { NightWidget.parse(list(it)) } ?: NightWidget.DEFAULT,
         nightDimmer = prefs.getBoolean("night_dimmer", false),
         weatherEntity = prefs.getString("night_weather", null),
-        calendarEntity = prefs.getString("night_calendar", null),
+        calendarEntities = list(prefs.getString("night_calendar", null)),
         roomTemperatureEntity = prefs.getString("night_room_temperature", null),
+        heatingEntity = prefs.getString("night_heating", null),
         nightLightEntity = prefs.getString("night_light", null),
         homeEntities = list(prefs.getString("night_home", null)),
     )
@@ -114,8 +120,9 @@ class AppPrefs(context: Context) {
             .putString("night_widgets", s.nightWidgets.joinToString(",") { it.id })
             .putBoolean("night_dimmer", s.nightDimmer)
             .putString("night_weather", s.weatherEntity)
-            .putString("night_calendar", s.calendarEntity)
+            .putString("night_calendar", s.calendarEntities.joinToString(","))
             .putString("night_room_temperature", s.roomTemperatureEntity)
+            .putString("night_heating", s.heatingEntity)
             .putString("night_light", s.nightLightEntity)
             .putString("night_home", s.homeEntities.joinToString(","))
             .commit()
