@@ -3,6 +3,7 @@ package alarmclock.vanbaelen.dev.core
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -74,9 +75,9 @@ data class NightAlarm(val alarmId: String, val ringAt: Long, val skipped: Boolea
 
 /** Widgets of the night display, in the order they appear (docs/design.md, Night display). */
 enum class NightWidget(val id: String) {
+    HOME("home"),
     WEATHER("weather"),
     PLAN("plan"),
-    HOME("home"),
     CALENDAR("calendar"),
     BATTERY("battery");
 
@@ -87,9 +88,74 @@ enum class NightWidget(val id: String) {
     }
 }
 
+/**
+ * The Bedroom widget's two slider rows (docs/design.md, Night display): the night lamp in 5 %
+ * steps and the heating's target in its own steps, both set by sliding anywhere on the row.
+ */
+object Bedroom {
+    const val LAMP_STEP = 5
+
+    /** Heating range of the slider in °C, widened to the thermostat's target when it is outside. */
+    private const val HEAT_LOW_C = 15.0
+    private const val HEAT_HIGH_C = 24.0
+
+    /** A light that takes a brightness; a switch or an on/off light only goes on or off. */
+    fun dimmable(s: HaState): Boolean {
+        if (s.domain != "light") return false
+        val modes = (s.attributes["supported_color_modes"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+        return modes == null || modes.any { it != "onoff" }
+    }
+
+    /** The lamp in percent (0 = off), on the slider's 5 % steps; an on switch is 100. */
+    fun lampPercent(s: HaState): Int {
+        if (s.state != "on") return 0
+        val brightness = s.number("brightness") ?: return 100
+        return (Math.round(brightness / 255.0 * 100 / LAMP_STEP) * LAMP_STEP).toInt().coerceIn(LAMP_STEP, 100)
+    }
+
+    /** The lamp at slider position [fraction]: 5 % steps, or off / on for a lamp without dimming. */
+    fun lampAt(fraction: Float, dimmable: Boolean): Int {
+        val f = fraction.coerceIn(0f, 1f)
+        return if (dimmable) Math.round(f * 100 / LAMP_STEP) * LAMP_STEP else if (f >= 0.5f) 100 else 0
+    }
+
+    /** The thermostat's single target; null in heat/cool range mode or when it is off. */
+    fun target(s: HaState): Double? = s.number("temperature")
+
+    fun step(s: HaState): Double = s.number("target_temp_step")?.takeIf { it > 0 } ?: 0.5
+
+    /**
+     * The slider's range: 15–24 °C (59–76 °F) inside the thermostat's limits, widened to include
+     * [target]. A thermostat with a maximum above 40 counts as Fahrenheit.
+     */
+    fun heatRange(s: HaState, target: Double?): ClosedFloatingPointRange<Double> {
+        val max = s.number("max_temp")
+        val fahrenheit = max != null && max > 40
+        var low = maxOf(s.number("min_temp") ?: Double.NEGATIVE_INFINITY, if (fahrenheit) 59.0 else HEAT_LOW_C)
+        var high = minOf(max ?: Double.POSITIVE_INFINITY, if (fahrenheit) 76.0 else HEAT_HIGH_C)
+        if (high <= low) high = low + 1
+        if (target != null) {
+            low = minOf(low, target)
+            high = maxOf(high, target)
+        }
+        return low..high
+    }
+
+    /** The target at slider position [fraction], on [step]. */
+    fun heatAt(fraction: Float, range: ClosedFloatingPointRange<Double>, step: Double): Double {
+        val raw = range.start + fraction.coerceIn(0f, 1f) * (range.endInclusive - range.start)
+        return (Math.round(raw / step) * step).coerceIn(range.start, range.endInclusive)
+    }
+
+    fun heatFraction(target: Double, range: ClosedFloatingPointRange<Double>): Float =
+        ((target - range.start) / (range.endInclusive - range.start)).toFloat().coerceIn(0f, 1f)
+}
+
 object NightPlan {
-    /** How many entities the home widget lists under the night light. */
+    /** How many status entities the Bedroom widget lists beside its title. */
     const val HOME_ROWS = 3
+    /** How many calendars the calendar widget reads. */
+    const val CALENDARS = 6
 
     /**
      * The soonest of the normal rings and the occurrences skipped with "Skip next" ([skipped]:

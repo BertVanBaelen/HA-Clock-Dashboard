@@ -1,12 +1,14 @@
 package alarmclock.vanbaelen.dev.ui.screens
 
 import alarmclock.vanbaelen.dev.R
+import alarmclock.vanbaelen.dev.core.Bedroom
 import alarmclock.vanbaelen.dev.core.HaState
 import alarmclock.vanbaelen.dev.core.NightAlarm
 import alarmclock.vanbaelen.dev.core.NightWidget
 import alarmclock.vanbaelen.dev.core.Timing
 import alarmclock.vanbaelen.dev.core.WeatherPlan
 import alarmclock.vanbaelen.dev.core.signedOffset
+import alarmclock.vanbaelen.dev.data.HomeInfo
 import alarmclock.vanbaelen.dev.data.LocalSettings
 import alarmclock.vanbaelen.dev.data.WeatherInfo
 import alarmclock.vanbaelen.dev.ui.AlarmItem
@@ -18,7 +20,12 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +33,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -43,26 +51,42 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.math.roundToInt
 
 /** The row of widget cards, scrolling sideways, right of the small clock. */
 @Composable
@@ -111,30 +135,23 @@ internal fun NightWidgets(
                 NightWidget.PLAN -> WidgetCard(f, stringResource(R.string.widget_plan_title)) {
                     PlanBody(f, night, upcoming, planItem, scripts.associate { it.entityId to it.name }, zone)
                 }
-                NightWidget.HOME -> WidgetCard(f, stringResource(R.string.widget_home_title)) {
+                NightWidget.HOME -> WidgetCard(
+                    f,
+                    stringResource(R.string.widget_home_title),
+                    width = 420,
+                    status = home?.rows?.takeIf { it.isNotEmpty() }?.joinToString(" · ") { "${it.name} ${Format.entityState(context, it)}" },
+                ) {
                     val info = home
                     when {
-                        settings.roomTemperatureEntity == null && settings.nightLightEntity == null && settings.homeEntities.isEmpty() ->
-                            SetupHint(f, stringResource(R.string.widget_home_setup), onSettings)
+                        !settings.hasBedroom -> SetupHint(f, stringResource(R.string.widget_home_setup), onSettings)
                         info == null -> Muted(f, waiting)
-                        else -> {
-                            info.temperature?.let { s ->
-                                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(f.dp(8))) {
-                                    Text(roomTemperature(context, s), style = nightText(f, 30, FontWeight.Light), color = t.ink)
-                                    Text(s.name, style = nightText(f, 13), color = t.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = f.dp(5)))
-                                }
-                            }
-                            info.nightLight?.let { s ->
-                                SwitchRow(f, s.name, checked = s.state == "on", enabled = s.available) { on -> night.setNightLight(s.entityId, on) }
-                            }
-                            info.rows.forEachIndexed { i, s -> StatusRow(f, s.name, Format.entityState(context, s), border = i == 0) }
-                        }
+                        else -> BedroomBody(f, night, info)
                     }
                 }
                 NightWidget.CALENDAR -> WidgetCard(f, stringResource(R.string.widget_calendar_title)) {
                     val info = agenda
                     when {
-                        settings.calendarEntity == null -> SetupHint(f, stringResource(R.string.widget_calendar_setup), onSettings)
+                        settings.calendarEntities.isEmpty() -> SetupHint(f, stringResource(R.string.widget_calendar_setup), onSettings)
                         info == null -> Muted(f, waiting)
                         info.events.isEmpty() -> Muted(f, stringResource(R.string.widget_calendar_empty, Format.dayTitle(context, info.date)))
                         else -> {
@@ -213,6 +230,227 @@ internal fun sunTimes(context: android.content.Context, info: WeatherInfo, date:
         rise != null && set != null -> context.getString(R.string.sun_times, Format.time(context, rise.toEpochMilli()), Format.time(context, set.toEpochMilli()))
         rise != null -> context.getString(R.string.sunrise_at, Format.time(context, rise.toEpochMilli()))
         else -> null
+    }
+}
+
+// The Bedroom widget's own colours (mockup "Bedroom widget — states and rules").
+private val Bright = Color(0xFFFFE9D2)
+private val LampFill = Color(0xFF6E3F17)
+private val HeatFill = Color(0xFF6E2A12)
+private val AllOffLine = Color(0xFF6A4A2C)
+private val AllOffDone = Color(0xFF1A1209)
+
+/** Night lamp and heating as rows to slide, then "All lights off" (with undo) at the bottom. */
+@Composable
+private fun ColumnScope.BedroomBody(f: NightFrame, night: NightViewModel, info: HomeInfo) {
+    val context = LocalContext.current
+    val lightsOff by night.lightsOff.collectAsState()
+    info.lamp?.let { LampRow(f, night, it) }
+    val heating = info.heating
+    val room = info.temperature
+    if (heating != null) {
+        // The room now: the chosen temperature sensor, else the thermostat's own reading.
+        val now = room?.let { roomTemperature(context, it) } ?: heating.number("current_temperature")?.let { Format.degreesFine(context, it) }
+        HeatingRow(f, night, heating, now)
+    } else if (room != null) {
+        SlideRow(
+            f,
+            name = stringResource(R.string.entity_room_temperature),
+            hint = room.name,
+            value = roomTemperature(context, room),
+            icon = AppIcons.thermometer,
+            fraction = 0f,
+            fill = HeatFill,
+            fillAlpha = 1f,
+            steps = 0,
+            enabled = room.available,
+            onSlide = null,
+        )
+    }
+    Spacer(Modifier.weight(1f))
+    AllOffButton(f, undo = lightsOff != null) { night.toggleAllOff(info.lamp?.entityId) }
+}
+
+@Composable
+private fun LampRow(f: NightFrame, night: NightViewModel, lamp: HaState) {
+    val dimmable = Bedroom.dimmable(lamp)
+    val actual = Bedroom.lampPercent(lamp)
+    var shown by remember(lamp) { mutableIntStateOf(actual) }
+    var sliding by remember { mutableStateOf(false) }
+    SlideRow(
+        f,
+        name = stringResource(R.string.bedroom_lamp),
+        hint = when {
+            !lamp.available -> stringResource(R.string.state_unavailable)
+            sliding && shown > actual -> stringResource(R.string.bedroom_brighter)
+            sliding && shown < actual -> stringResource(R.string.bedroom_softer)
+            else -> stringResource(if (dimmable) R.string.bedroom_lamp_hint else R.string.bedroom_switch_hint)
+        },
+        value = when {
+            shown == 0 -> stringResource(R.string.state_off)
+            dimmable -> "$shown%"
+            else -> stringResource(R.string.state_on)
+        },
+        icon = AppIcons.lamp,
+        fraction = shown / 100f,
+        fill = LampFill,
+        fillAlpha = 0.45f + 0.55f * shown / 100f,
+        steps = if (dimmable) 100 / Bedroom.LAMP_STEP - 1 else 0,
+        enabled = lamp.available,
+        onSlide = { fraction ->
+            sliding = true
+            val v = Bedroom.lampAt(fraction, dimmable)
+            (v != shown).also { shown = v }
+        },
+        onDone = {
+            sliding = false
+            if (shown != actual) night.setLamp(lamp.entityId, shown)
+        },
+    )
+}
+
+/** The thermostat's target (the big number) and the room now (the small line). */
+@Composable
+private fun HeatingRow(f: NightFrame, night: NightViewModel, heating: HaState, now: String?) {
+    val context = LocalContext.current
+    val target = Bedroom.target(heating)
+    val range = Bedroom.heatRange(heating, target)
+    val step = Bedroom.step(heating)
+    var shown by remember(heating) { mutableStateOf(target) }
+    SlideRow(
+        f,
+        name = stringResource(R.string.bedroom_heating),
+        hint = if (now != null) stringResource(R.string.bedroom_heating_now, now) else stringResource(R.string.bedroom_heating_hint),
+        value = shown?.let { Format.degreesFine(context, it) } ?: Format.entityState(context, heating),
+        icon = AppIcons.thermometer,
+        fraction = shown?.let { Bedroom.heatFraction(it, range) } ?: 0f,
+        fill = HeatFill,
+        fillAlpha = 1f,
+        steps = ((range.endInclusive - range.start) / step).roundToInt() - 1,
+        enabled = heating.available && target != null,
+        onSlide = { fraction ->
+            val v = Bedroom.heatAt(fraction, range, step)
+            (v != shown).also { shown = v }
+        },
+        onDone = { shown?.let { if (it != target) night.setHeating(heating.entityId, it) } },
+    )
+}
+
+/**
+ * A 76 high row to slide anywhere on: the fill and the number follow the finger, letting go sets
+ * it (no Save). A tap sets it where it was touched; a vertical swipe is left to the screen.
+ * [onSlide] gets the position 0..1 and returns whether the value moved a step (a soft tick).
+ */
+@Composable
+private fun SlideRow(
+    f: NightFrame,
+    name: String,
+    hint: String,
+    value: String,
+    icon: ImageVector,
+    fraction: Float,
+    fill: Color,
+    fillAlpha: Float,
+    steps: Int,
+    enabled: Boolean,
+    onSlide: ((Float) -> Boolean)?,
+    onDone: () -> Unit = {},
+) {
+    val t = tokens
+    val haptic = LocalHapticFeedback.current
+    val shape = RoundedCornerShape(f.dp(22))
+    val slide by rememberUpdatedState(onSlide)
+    val done by rememberUpdatedState(onDone)
+    val interactive = enabled && onSlide != null
+    fun move(position: Float) {
+        if (slide?.invoke(position) == true) haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+    }
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(f.dp(76))
+            .graphicsLayer { alpha = if (enabled) 1f else 0.5f }
+            .clip(shape)
+            .border(1.dp, t.line, shape)
+            .drawBehind {
+                val w = size.width * fraction
+                drawRect(fill, size = Size(w, size.height), alpha = fillAlpha)
+                val edge = 2.dp.toPx()
+                drawRect(t.accent, topLeft = Offset((w - edge).coerceAtLeast(0f), 0f), size = Size(edge, size.height), alpha = fillAlpha)
+            }
+            .then(
+                if (!interactive) {
+                    Modifier
+                } else {
+                    Modifier
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown()
+                                val drag = awaitHorizontalTouchSlopOrCancellation(down.id) { change, _ -> change.consume() }
+                                if (drag != null) {
+                                    move(drag.position.x / size.width)
+                                    horizontalDrag(drag.id) { change ->
+                                        change.consume()
+                                        move(change.position.x / size.width)
+                                    }
+                                    done()
+                                } else {
+                                    val up = currentEvent.changes.firstOrNull { it.id == down.id && it.changedToUp() }
+                                    if (up != null) {
+                                        up.consume()
+                                        move(down.position.x / size.width)
+                                        done()
+                                    }
+                                }
+                            }
+                        }
+                        .semantics(mergeDescendants = true) {
+                            stateDescription = value
+                            progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f, steps.coerceAtLeast(0))
+                            setProgress { target ->
+                                slide?.invoke(target)
+                                done()
+                                true
+                            }
+                        }
+                },
+            ),
+    ) {
+        Row(
+            Modifier.fillMaxSize().padding(horizontal = f.dp(18)),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(f.dp(10)),
+        ) {
+            Icon(icon, null, tint = Bright, modifier = Modifier.size(f.dp(22)))
+            Column(Modifier.weight(1f)) {
+                Text(name, style = nightText(f, 15, FontWeight.Medium), color = Bright, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(hint, style = nightText(f, 12), color = t.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text(value, style = nightText(f, 32, FontWeight.ExtraLight).copy(lineHeight = f.sp(32)), color = Bright, maxLines = 1)
+        }
+    }
+}
+
+/** Turns off every light; for a few seconds after, it reads "tap to undo". */
+@Composable
+private fun AllOffButton(f: NightFrame, undo: Boolean, onClick: () -> Unit) {
+    val t = tokens
+    val shape = RoundedCornerShape(f.dp(25))
+    val bg by animateColorAsState(if (undo) AllOffDone else Color.Transparent, tween(250), label = "allOffBg")
+    val fg by animateColorAsState(if (undo) t.muted else Bright, tween(250), label = "allOffFg")
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = maxOf(48.dp, f.dp(50)))
+            .clip(shape)
+            .background(bg)
+            .border(1.dp, if (undo) t.line else AllOffLine, shape)
+            .clickable(role = Role.Button, onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(f.dp(8), Alignment.CenterHorizontally),
+    ) {
+        Icon(AppIcons.lightsOff, null, tint = fg, modifier = Modifier.size(f.dp(18)))
+        Text(stringResource(if (undo) R.string.bedroom_all_off_undo else R.string.bedroom_all_off), style = nightText(f, 15, FontWeight.Medium), color = fg)
     }
 }
 
@@ -336,14 +574,17 @@ private fun widgetIcon(w: NightWidget): ImageVector = when (w) {
     NightWidget.BATTERY -> AppIcons.battery
 }
 
-/** A 204 × 288 card with an uppercase title; taps on it do not reach the screen behind. */
+/**
+ * A 204 × 288 card (420 wide for Bedroom) with an uppercase title and an optional [status] line
+ * beside it; taps on it do not reach the screen behind.
+ */
 @Composable
-private fun WidgetCard(f: NightFrame, title: String, content: @Composable ColumnScope.() -> Unit) {
+private fun WidgetCard(f: NightFrame, title: String, width: Int = 204, status: String? = null, content: @Composable ColumnScope.() -> Unit) {
     val t = tokens
     val shape = RoundedCornerShape(f.dp(20))
     Column(
         Modifier
-            .width(f.dp(204))
+            .width(f.dp(width))
             .height(f.dp(288))
             .clip(shape)
             .background(t.surface)
@@ -352,12 +593,25 @@ private fun WidgetCard(f: NightFrame, title: String, content: @Composable Column
             .padding(f.dp(16)),
         verticalArrangement = Arrangement.spacedBy(f.dp(10)),
     ) {
-        Text(
-            title.uppercase(),
-            style = nightText(f, 11, FontWeight.SemiBold).copy(letterSpacing = 0.08.em),
-            color = t.muted,
-            maxLines = 1,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(f.dp(12))) {
+            Text(
+                title.uppercase(),
+                style = nightText(f, 11, FontWeight.SemiBold).copy(letterSpacing = 0.08.em),
+                color = t.muted,
+                maxLines = 1,
+            )
+            if (status != null) {
+                Text(
+                    status,
+                    style = nightText(f, 11),
+                    color = t.muted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
         content()
     }
 }
@@ -388,20 +642,6 @@ private fun SwitchRow(f: NightFrame, label: String, checked: Boolean, enabled: B
     ) {
         Text(label, style = nightText(f, 14), color = t.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         SwitchMark(f, checked)
-    }
-}
-
-@Composable
-private fun StatusRow(f: NightFrame, label: String, value: String, border: Boolean) {
-    val t = tokens
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .then(if (border) Modifier.drawBehind { drawLine(t.line, Offset.Zero, Offset(size.width, 0f), 1.dp.toPx()) }.padding(top = f.dp(10)) else Modifier),
-        horizontalArrangement = Arrangement.spacedBy(f.dp(8)),
-    ) {
-        Text(label, style = nightText(f, 13), color = t.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Text(value, style = nightText(f, 13), color = t.muted, maxLines = 1)
     }
 }
 

@@ -13,6 +13,7 @@ import alarmclock.vanbaelen.dev.core.signedOffset
 import alarmclock.vanbaelen.dev.data.LocalSettings
 import alarmclock.vanbaelen.dev.data.SaveResult
 import alarmclock.vanbaelen.dev.data.ScriptRow
+import alarmclock.vanbaelen.dev.data.problemOf
 import alarmclock.vanbaelen.dev.ui.AlarmItem
 import alarmclock.vanbaelen.dev.ui.AppIcons
 import alarmclock.vanbaelen.dev.ui.Format
@@ -23,12 +24,14 @@ import alarmclock.vanbaelen.dev.ui.NightTokens
 import alarmclock.vanbaelen.dev.ui.tokens
 import android.app.Activity
 import android.app.Application
+import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.os.BatteryManager
+import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
@@ -100,8 +103,10 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -149,8 +154,46 @@ class NightViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateSettings(transform: (LocalSettings) -> LocalSettings) = app.prefs.updateSettings(transform)
 
-    fun setNightLight(entityId: String, on: Boolean) {
-        viewModelScope.launch { app.night.setSwitch(entityId, on)?.let { flash.value = Format.problem(app, it) } }
+    /** What "All lights off" turned off, while it can be undone. */
+    val lightsOff = MutableStateFlow<List<String>?>(null)
+    private var undoEnds: Job? = null
+
+    fun setLamp(entityId: String, percent: Int) {
+        viewModelScope.launch { app.night.setLamp(entityId, percent)?.let { flash.value = Format.problem(app, it) } }
+    }
+
+    fun setHeating(entityId: String, target: Double) {
+        viewModelScope.launch { app.night.setHeating(entityId, target)?.let { flash.value = Format.problem(app, it) } }
+    }
+
+    /** All lights off, or its undo while the button offers it. */
+    fun toggleAllOff(lamp: String?) {
+        val undo = lightsOff.value
+        undoEnds?.cancel()
+        lightsOff.value = null
+        viewModelScope.launch {
+            if (undo != null) {
+                app.night.turnOn(undo, lamp)?.let { flash.value = Format.problem(app, it) }
+                return@launch
+            }
+            app.night.allLightsOff(lamp)
+                .onSuccess { off ->
+                    lightsOff.value = off
+                    undoEnds = launch {
+                        delay(UNDO_MS)
+                        lightsOff.value = null
+                    }
+                }
+                .onFailure { flash.value = Format.problem(app, problemOf(it)) }
+        }
+    }
+
+    /** Do Not Disturb on (the phone's own priority rules, so alarms still ring) or off. */
+    fun setDnd(on: Boolean) {
+        val nm = app.getSystemService(NotificationManager::class.java) ?: return
+        if (!nm.isNotificationPolicyAccessGranted) return
+        nm.setInterruptionFilter(if (on) NotificationManager.INTERRUPTION_FILTER_PRIORITY else NotificationManager.INTERRUPTION_FILTER_ALL)
+        flash.value = app.getString(if (on) R.string.night_dnd_set_on else R.string.night_dnd_set_off)
     }
 
     fun setSkip(alarm: Alarm, skip: Boolean) {
@@ -175,6 +218,11 @@ class NightViewModel(application: Application) : AndroidViewModel(application) {
                 ?: return@mapNotNull null
             NightPlan.skippedAt(a.time, date, zone)?.let { a.id to it.toEpochMilli() }
         }.toMap()
+    }
+
+    private companion object {
+        /** How long "All lights off" can be undone. */
+        const val UNDO_MS = 6_000L
     }
 }
 
@@ -214,6 +262,7 @@ fun NightScreen(vm: MainViewModel, onExit: () -> Unit, onRinging: () -> Unit, on
     var shift by remember { mutableStateOf(Offset.Zero) }
     var rang by remember { mutableStateOf<String?>(null) }
     val battery = rememberBattery()
+    val dnd = rememberDnd()
     val zone = ZoneId.systemDefault()
 
     DisposableEffect(Unit) {
@@ -288,8 +337,8 @@ fun NightScreen(vm: MainViewModel, onExit: () -> Unit, onRinging: () -> Unit, on
     val planItem = upcoming?.let { u -> items.firstOrNull { it.alarm.id == u.alarmId } }
     val target = NightPlan.targetDate(nextNormal?.ringAt, ZonedDateTime.now(zone))
     val sources = listOf(
-        settings.nightWidgets, settings.weatherEntity, settings.calendarEntity,
-        settings.roomTemperatureEntity, settings.nightLightEntity, settings.homeEntities,
+        settings.nightWidgets, settings.weatherEntity, settings.calendarEntities,
+        settings.roomTemperatureEntity, settings.nightLightEntity, settings.heatingEntity, settings.homeEntities,
     )
     LaunchedEffect(target, sources) {
         while (true) {
@@ -351,6 +400,7 @@ fun NightScreen(vm: MainViewModel, onExit: () -> Unit, onRinging: () -> Unit, on
                         alarmLine = alarmLine,
                         batteryLine = batteryLine,
                         battery = battery,
+                        dnd = dnd,
                         upcoming = upcoming,
                         planItem = planItem,
                         target = target,
@@ -376,6 +426,7 @@ private fun NightContent(
     alarmLine: String,
     batteryLine: String,
     battery: BatteryState,
+    dnd: DndState,
     upcoming: NightAlarm?,
     planItem: AlarmItem?,
     target: LocalDate,
@@ -444,7 +495,7 @@ private fun NightContent(
             modifier = Modifier.align(Alignment.TopEnd).offset(x = -f.dp(24), y = f.dp(20)).graphicsLayer { alpha = 0.75f * idleA },
         )
 
-        // With the widgets: alarm and battery under the small clock, the dimmer, and the buttons.
+        // With the widgets: alarm and battery under the small clock, Do Not Disturb, the dimmer, and the buttons.
         Column(
             Modifier.offset(x = f.dp(32), y = f.dp(112)).width(f.dp(230)).graphicsLayer { alpha = sideA },
             verticalArrangement = Arrangement.spacedBy(f.dp(8)),
@@ -459,6 +510,23 @@ private fun NightContent(
             }
         }
         if (!idle) {
+            NightPill(
+                f,
+                stringResource(if (dnd.on) R.string.night_dnd_on else R.string.night_dnd),
+                icon = if (dnd.on) AppIcons.bellOff else AppIcons.bell,
+                outlined = true,
+                fill = if (dnd.on) t.soft else Color.Transparent,
+                description = stringResource(R.string.night_dnd_hint),
+                modifier = Modifier.offset(x = f.dp(24), y = f.dp(264)).graphicsLayer { alpha = sideA },
+            ) {
+                if (dnd.allowed) {
+                    night.setDnd(!dnd.on)
+                } else {
+                    // Android only lets an app change Do Not Disturb after the user allows it once.
+                    night.flash.value = context.getString(R.string.night_dnd_access)
+                    runCatching { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) }
+                }
+            }
             NightPill(
                 f,
                 stringResource(if (settings.nightDimmer) R.string.night_dimmer_on else R.string.night_dimmer),
@@ -603,6 +671,44 @@ private fun rememberBattery(): BatteryState {
         onDispose { context.unregisterReceiver(receiver) }
     }
     return state
+}
+
+/** Do Not Disturb as the night display shows it; [allowed] once the user gave the app access to change it. */
+data class DndState(val on: Boolean, val allowed: Boolean)
+
+/** Do Not Disturb, kept up to date while shown (also after coming back from granting access). */
+@Composable
+private fun rememberDnd(): DndState {
+    val context = LocalContext.current
+    var state by remember { mutableStateOf(readDnd(context)) }
+    DisposableEffect(Unit) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, intent: Intent) {
+                state = readDnd(c)
+            }
+        }
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            IntentFilter(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        onDispose { context.unregisterReceiver(receiver) }
+    }
+    LifecycleResumeEffect(Unit) {
+        state = readDnd(context)
+        onPauseOrDispose { }
+    }
+    return state
+}
+
+private fun readDnd(context: Context): DndState {
+    val nm = context.getSystemService(NotificationManager::class.java) ?: return DndState(on = false, allowed = false)
+    val filter = nm.currentInterruptionFilter
+    return DndState(
+        on = filter != NotificationManager.INTERRUPTION_FILTER_ALL && filter != NotificationManager.INTERRUPTION_FILTER_UNKNOWN,
+        allowed = nm.isNotificationPolicyAccessGranted,
+    )
 }
 
 internal fun readBattery(context: Context, intent: Intent?): BatteryState {

@@ -261,6 +261,12 @@
     <string name="night_dimmer">Dimmer</string>
     <string name="night_dimmer_on">Dimmer aan</string>
     <string name="night_dimmer_hint">Maak het scherm donkerder</string>
+    <string name="night_dnd">Niet storen</string>
+    <string name="night_dnd_on">Niet storen aan</string>
+    <string name="night_dnd_hint">Zet Niet storen aan of uit. Wekkers gaan nog af.</string>
+    <string name="night_dnd_access">Geef deze app toegang tot Niet storen en tik opnieuw.</string>
+    <string name="night_dnd_set_on">Niet storen aan · wekkers gaan nog af</string>
+    <string name="night_dnd_set_off">Niet storen uit</string>
     <string name="night_edit_widgets">Widgets kiezen</string>
     <string name="night_hide">Verbergen</string>
     <string name="night_auto_desc">Wanneer de telefoon tussen %1$s en %2$s op zijn zij oplaadt. Je kan de nachtklok ook altijd openen vanuit de app.</string>
@@ -273,19 +279,29 @@
     <string name="widget_plan">Ochtendplan</string>
     <string name="widget_plan_text">Je wekker en zijn acties</string>
     <string name="widget_home">Slaapkamer</string>
-    <string name="widget_home_text">Nachtlampje, lichten, deur, verwarming</string>
+    <string name="widget_home_text">Nachtlampje, verwarming, alle lichten uit</string>
     <string name="widget_calendar">Eerste afspraak morgen</string>
     <string name="widget_calendar_text">De eerste afspraak van de dag</string>
     <string name="widget_battery">Batterij</string>
     <string name="widget_battery_text">Laadniveau en wanneer hij vol is</string>
     <string name="widget_plan_title">Volgende wekker</string>
-    <string name="widget_home_title">Thuis</string>
+    <string name="widget_home_title">Slaapkamer</string>
     <string name="widget_calendar_title">Eerste afspraak</string>
     <string name="widget_battery_title">Batterij</string>
     <string name="widget_weather_setup">Kies een weerentiteit bij Instellingen.</string>
     <string name="widget_home_setup">Kies de entiteiten van de slaapkamer bij Instellingen.</string>
-    <string name="widget_calendar_setup">Kies een agenda bij Instellingen.</string>
+    <string name="widget_calendar_setup">Kies een of meer agenda’s bij Instellingen.</string>
     <string name="widget_calendar_empty">Niets in de agenda voor %s.</string>
+    <string name="bedroom_lamp">Nachtlampje</string>
+    <string name="bedroom_lamp_hint">Schuif om te dimmen of feller te maken</string>
+    <string name="bedroom_switch_hint">Schuif om aan of uit te zetten</string>
+    <string name="bedroom_brighter">Feller</string>
+    <string name="bedroom_softer">Zachter</string>
+    <string name="bedroom_heating">Verwarming</string>
+    <string name="bedroom_heating_now">Nu %s · schuif om in te stellen</string>
+    <string name="bedroom_heating_hint">Schuif om in te stellen</string>
+    <string name="bedroom_all_off">Alle lichten uit</string>
+    <string name="bedroom_all_off_undo">Alle lichten uit · tik om terug te zetten</string>
     <string name="skip_today">Vandaag overslaan</string>
     <string name="skip_tomorrow">Morgen overslaan</string>
     <string name="battery_full">Volledig opgeladen.</string>
@@ -336,9 +352,10 @@
 
     <!-- Entiteiten kiezen (Instellingen → Nachtklok) -->
     <string name="entity_weather">Weer</string>
-    <string name="entity_calendar">Agenda</string>
+    <string name="entity_calendar">Agenda’s</string>
     <string name="entity_room_temperature">Temperatuur slaapkamer</string>
     <string name="entity_night_light">Nachtlampje</string>
+    <string name="entity_heating">Verwarming (thermostaat)</string>
     <string name="entity_home">Status slaapkamer</string>
     <string name="not_set">Niet ingesteld</string>
     <string name="search">Zoeken</string>
