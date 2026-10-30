@@ -1,6 +1,6 @@
 {
   "name": "alarm-actions",
-  "version": "0.3.2",
+  "version": "0.4.1",
   "private": true,
   "description": "Alarm Actions - Home Assistant add-on that runs scripts before, at or after alarms",
   "type": "module",
