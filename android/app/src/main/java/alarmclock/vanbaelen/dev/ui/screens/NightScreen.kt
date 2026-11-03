@@ -667,6 +667,9 @@ private fun NightContent(
             Text(checklistIntro(settings.nightStart), style = nightText(f, 13).copy(lineHeight = f.sp(19.5f)), color = t.muted)
         }
         if (widgets) {
+            // Resolved while composing, so they follow a configuration change (lint).
+            val dndAccess = stringResource(R.string.night_dnd_access)
+            val superdimFlash = stringResource(R.string.night_superdim_flash)
             NightPill(
                 f,
                 stringResource(if (dnd.on) R.string.night_dnd_on else R.string.night_dnd),
@@ -680,7 +683,7 @@ private fun NightContent(
                     night.setDnd(!dnd.on)
                 } else {
                     // Android only lets an app change Do Not Disturb after the user allows it once.
-                    night.flash.value = context.getString(R.string.night_dnd_access)
+                    night.flash.value = dndAccess
                     runCatching { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) }
                 }
             }
@@ -696,7 +699,7 @@ private fun NightContent(
             ) {
                 val next = level.next()
                 night.updateSettings { it.copy(nightBrightness = next) }
-                if (next == NightBrightness.SUPERDIM) night.flash.value = context.getString(R.string.night_superdim_flash)
+                if (next == NightBrightness.SUPERDIM) night.flash.value = superdimFlash
             }
         }
         if (!idle && mode != NightMode.CHECKLIST) {
