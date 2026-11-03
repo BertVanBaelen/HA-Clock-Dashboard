@@ -14,6 +14,7 @@ import alarmclock.vanbaelen.dev.data.WeatherInfo
 import alarmclock.vanbaelen.dev.ui.AlarmItem
 import alarmclock.vanbaelen.dev.ui.AppIcons
 import alarmclock.vanbaelen.dev.ui.Format
+import alarmclock.vanbaelen.dev.ui.NightBright
 import alarmclock.vanbaelen.dev.ui.tokens
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -23,9 +24,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.horizontalDrag
+import androidx.compose.foundation.gestures.verticalDrag
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,7 +34,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -86,6 +87,7 @@ import androidx.compose.ui.unit.em
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /** The row of widget cards, scrolling sideways, right of the small clock. */
@@ -138,7 +140,7 @@ internal fun NightWidgets(
                 NightWidget.HOME -> WidgetCard(
                     f,
                     stringResource(R.string.widget_home_title),
-                    width = 420,
+                    width = 330,
                     status = home?.rows?.takeIf { it.isNotEmpty() }?.joinToString(" · ") { "${it.name} ${Format.entityState(context, it)}" },
                 ) {
                     val info = home
@@ -233,60 +235,54 @@ internal fun sunTimes(context: android.content.Context, info: WeatherInfo, date:
     }
 }
 
-// The Bedroom widget's own colours (mockup "Bedroom widget — states and rules").
-private val Bright = Color(0xFFFFE9D2)
+// The Bedroom widget's own colours (mockups "Bedroom widget — states and rules" and "with vertical sliders").
 private val LampFill = Color(0xFF6E3F17)
 private val HeatFill = Color(0xFF6E2A12)
-private val AllOffLine = Color(0xFF6A4A2C)
+internal val AllOffLine = Color(0xFF6A4A2C)
 private val AllOffDone = Color(0xFF1A1209)
 
-/** Night lamp and heating as rows to slide, then "All lights off" (with undo) at the bottom. */
+/** Night lamp and heating as bars to slide up and down, then "All lights off" (with undo) at the bottom. */
 @Composable
 private fun ColumnScope.BedroomBody(f: NightFrame, night: NightViewModel, info: HomeInfo) {
     val context = LocalContext.current
     val lightsOff by night.lightsOff.collectAsState()
-    info.lamp?.let { LampRow(f, night, it) }
-    val heating = info.heating
-    val room = info.temperature
-    if (heating != null) {
-        // The room now: the chosen temperature sensor, else the thermostat's own reading.
-        val now = room?.let { roomTemperature(context, it) } ?: heating.number("current_temperature")?.let { Format.degreesFine(context, it) }
-        HeatingRow(f, night, heating, now)
-    } else if (room != null) {
-        SlideRow(
-            f,
-            name = stringResource(R.string.entity_room_temperature),
-            hint = room.name,
-            value = roomTemperature(context, room),
-            icon = AppIcons.thermometer,
-            fraction = 0f,
-            fill = HeatFill,
-            fillAlpha = 1f,
-            steps = 0,
-            enabled = room.available,
-            onSlide = null,
-        )
+    Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(f.dp(14))) {
+        info.lamp?.let { LampBar(f, night, it, Modifier.weight(1f)) }
+        val heating = info.heating
+        val room = info.temperature
+        if (heating != null) {
+            // The room now: the chosen temperature sensor, else the thermostat's own reading.
+            val now = room?.let { roomTemperature(context, it) } ?: heating.number("current_temperature")?.let { Format.degreesFine(context, it) }
+            HeatingBar(f, night, heating, now, Modifier.weight(1f))
+        } else if (room != null) {
+            SlideBar(
+                f,
+                name = stringResource(R.string.entity_room_temperature),
+                value = roomTemperature(context, room),
+                icon = AppIcons.thermometer,
+                fraction = 0f,
+                fill = HeatFill,
+                fillAlpha = 1f,
+                steps = 0,
+                enabled = room.available,
+                onSlide = null,
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
-    Spacer(Modifier.weight(1f))
     AllOffButton(f, undo = lightsOff != null) { night.toggleAllOff(info.lamp?.entityId) }
 }
 
 @Composable
-private fun LampRow(f: NightFrame, night: NightViewModel, lamp: HaState) {
+private fun LampBar(f: NightFrame, night: NightViewModel, lamp: HaState, modifier: Modifier) {
     val dimmable = Bedroom.dimmable(lamp)
     val actual = Bedroom.lampPercent(lamp)
     var shown by remember(lamp) { mutableIntStateOf(actual) }
-    var sliding by remember { mutableStateOf(false) }
-    SlideRow(
+    SlideBar(
         f,
         name = stringResource(R.string.bedroom_lamp),
-        hint = when {
-            !lamp.available -> stringResource(R.string.state_unavailable)
-            sliding && shown > actual -> stringResource(R.string.bedroom_brighter)
-            sliding && shown < actual -> stringResource(R.string.bedroom_softer)
-            else -> stringResource(if (dimmable) R.string.bedroom_lamp_hint else R.string.bedroom_switch_hint)
-        },
         value = when {
+            !lamp.available -> stringResource(R.string.state_unavailable)
             shown == 0 -> stringResource(R.string.state_off)
             dimmable -> "$shown%"
             else -> stringResource(R.string.state_on)
@@ -298,29 +294,25 @@ private fun LampRow(f: NightFrame, night: NightViewModel, lamp: HaState) {
         steps = if (dimmable) 100 / Bedroom.LAMP_STEP - 1 else 0,
         enabled = lamp.available,
         onSlide = { fraction ->
-            sliding = true
             val v = Bedroom.lampAt(fraction, dimmable)
             (v != shown).also { shown = v }
         },
-        onDone = {
-            sliding = false
-            if (shown != actual) night.setLamp(lamp.entityId, shown)
-        },
+        onDone = { if (shown != actual) night.setLamp(lamp.entityId, shown) },
+        modifier = modifier,
     )
 }
 
-/** The thermostat's target (the big number) and the room now (the small line). */
+/** The thermostat's target (the number in the bar) and the room now (beside the name). */
 @Composable
-private fun HeatingRow(f: NightFrame, night: NightViewModel, heating: HaState, now: String?) {
+private fun HeatingBar(f: NightFrame, night: NightViewModel, heating: HaState, now: String?, modifier: Modifier) {
     val context = LocalContext.current
     val target = Bedroom.target(heating)
     val range = Bedroom.heatRange(heating, target)
     val step = Bedroom.step(heating)
     var shown by remember(heating) { mutableStateOf(target) }
-    SlideRow(
+    SlideBar(
         f,
-        name = stringResource(R.string.bedroom_heating),
-        hint = if (now != null) stringResource(R.string.bedroom_heating_now, now) else stringResource(R.string.bedroom_heating_hint),
+        name = if (now != null) stringResource(R.string.bedroom_heating_now, now) else stringResource(R.string.bedroom_heating),
         value = shown?.let { Format.degreesFine(context, it) } ?: Format.entityState(context, heating),
         icon = AppIcons.thermometer,
         fraction = shown?.let { Bedroom.heatFraction(it, range) } ?: 0f,
@@ -333,19 +325,20 @@ private fun HeatingRow(f: NightFrame, night: NightViewModel, heating: HaState, n
             (v != shown).also { shown = v }
         },
         onDone = { shown?.let { if (it != target) night.setHeating(heating.entityId, it) } },
+        modifier = modifier,
     )
 }
 
 /**
- * A 76 high row to slide anywhere on: the fill and the number follow the finger, letting go sets
- * it (no Save). A tap sets it where it was touched; a vertical swipe is left to the screen.
- * [onSlide] gets the position 0..1 and returns whether the value moved a step (a soft tick).
+ * A bar to slide up and down anywhere on, its name below: the fill and the number follow the
+ * finger, letting go sets it (no Save). A tap sets it where it was touched. The direction is
+ * decided after the touch slop: sideways is left to the widget row, so it never changes a light.
+ * [onSlide] gets the position 0..1 from the bottom and returns whether the value moved a step (a soft tick).
  */
 @Composable
-private fun SlideRow(
+private fun SlideBar(
     f: NightFrame,
     name: String,
-    hint: String,
     value: String,
     icon: ImageVector,
     fraction: Float,
@@ -354,80 +347,87 @@ private fun SlideRow(
     steps: Int,
     enabled: Boolean,
     onSlide: ((Float) -> Boolean)?,
+    modifier: Modifier,
     onDone: () -> Unit = {},
 ) {
     val t = tokens
     val haptic = LocalHapticFeedback.current
-    val shape = RoundedCornerShape(f.dp(22))
+    val shape = RoundedCornerShape(f.dp(26))
     val slide by rememberUpdatedState(onSlide)
     val done by rememberUpdatedState(onDone)
+    var active by remember { mutableStateOf(false) }
+    val border by animateColorAsState(if (active) t.accent else t.line, tween(200), label = "barBorder")
     val interactive = enabled && onSlide != null
     fun move(position: Float) {
         if (slide?.invoke(position) == true) haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
     }
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(f.dp(76))
-            .graphicsLayer { alpha = if (enabled) 1f else 0.5f }
-            .clip(shape)
-            .border(1.dp, t.line, shape)
-            .drawBehind {
-                val w = size.width * fraction
-                drawRect(fill, size = Size(w, size.height), alpha = fillAlpha)
-                val edge = 2.dp.toPx()
-                drawRect(t.accent, topLeft = Offset((w - edge).coerceAtLeast(0f), 0f), size = Size(edge, size.height), alpha = fillAlpha)
-            }
-            .then(
-                if (!interactive) {
-                    Modifier
-                } else {
-                    Modifier
-                        .pointerInput(Unit) {
-                            awaitEachGesture {
-                                val down = awaitFirstDown()
-                                val drag = awaitHorizontalTouchSlopOrCancellation(down.id) { change, _ -> change.consume() }
-                                if (drag != null) {
-                                    move(drag.position.x / size.width)
-                                    horizontalDrag(drag.id) { change ->
-                                        change.consume()
-                                        move(change.position.x / size.width)
+    Column(modifier.fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(f.dp(6))) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .graphicsLayer { alpha = if (enabled) 1f else 0.5f }
+                .clip(shape)
+                .border(1.dp, border, shape)
+                .drawBehind {
+                    val top = size.height * (1f - fraction)
+                    drawRect(fill, topLeft = Offset(0f, top), size = Size(size.width, size.height - top), alpha = fillAlpha)
+                    val edge = 2.dp.toPx()
+                    drawRect(t.accent, topLeft = Offset(0f, top.coerceAtMost(size.height - edge)), size = Size(size.width, edge), alpha = fillAlpha)
+                }
+                .then(
+                    if (!interactive) {
+                        Modifier
+                    } else {
+                        Modifier
+                            .pointerInput(Unit) {
+                                awaitEachGesture {
+                                    val down = awaitFirstDown()
+                                    val drag = awaitTouchSlopOrCancellation(down.id) { change, _ ->
+                                        val d = change.position - down.position
+                                        if (abs(d.y) >= abs(d.x)) change.consume()
                                     }
-                                    done()
-                                } else {
-                                    val up = currentEvent.changes.firstOrNull { it.id == down.id && it.changedToUp() }
-                                    if (up != null) {
-                                        up.consume()
-                                        move(down.position.x / size.width)
+                                    if (drag != null) {
+                                        active = true
+                                        move(1f - drag.position.y / size.height)
+                                        verticalDrag(drag.id) { change ->
+                                            change.consume()
+                                            move(1f - change.position.y / size.height)
+                                        }
+                                        active = false
                                         done()
+                                    } else {
+                                        val up = currentEvent.changes.firstOrNull { it.id == down.id && it.changedToUp() }
+                                        if (up != null) {
+                                            up.consume()
+                                            move(1f - down.position.y / size.height)
+                                            done()
+                                        }
                                     }
                                 }
                             }
-                        }
-                        .semantics(mergeDescendants = true) {
-                            stateDescription = value
-                            progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f, steps.coerceAtLeast(0))
-                            setProgress { target ->
-                                slide?.invoke(target)
-                                done()
-                                true
+                            .semantics(mergeDescendants = true) {
+                                stateDescription = value
+                                progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f, steps.coerceAtLeast(0))
+                                setProgress { target ->
+                                    slide?.invoke(target)
+                                    done()
+                                    true
+                                }
                             }
-                        }
-                },
-            ),
-    ) {
-        Row(
-            Modifier.fillMaxSize().padding(horizontal = f.dp(18)),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(f.dp(10)),
+                    },
+                ),
         ) {
-            Icon(icon, null, tint = Bright, modifier = Modifier.size(f.dp(22)))
-            Column(Modifier.weight(1f)) {
-                Text(name, style = nightText(f, 15, FontWeight.Medium), color = Bright, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(hint, style = nightText(f, 12), color = t.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            Text(value, style = nightText(f, 32, FontWeight.ExtraLight).copy(lineHeight = f.sp(32)), color = Bright, maxLines = 1)
+            Text(
+                value,
+                style = nightText(f, 28, FontWeight.ExtraLight).copy(lineHeight = f.sp(28)),
+                color = NightBright,
+                maxLines = 1,
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = f.dp(12)),
+            )
+            Icon(icon, null, tint = NightBright, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = f.dp(12)).size(f.dp(22)))
         }
+        Text(name, style = nightText(f, 13), color = t.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -437,7 +437,7 @@ private fun AllOffButton(f: NightFrame, undo: Boolean, onClick: () -> Unit) {
     val t = tokens
     val shape = RoundedCornerShape(f.dp(25))
     val bg by animateColorAsState(if (undo) AllOffDone else Color.Transparent, tween(250), label = "allOffBg")
-    val fg by animateColorAsState(if (undo) t.muted else Bright, tween(250), label = "allOffFg")
+    val fg by animateColorAsState(if (undo) t.muted else NightBright, tween(250), label = "allOffFg")
     Row(
         Modifier
             .fillMaxWidth()
@@ -575,7 +575,7 @@ private fun widgetIcon(w: NightWidget): ImageVector = when (w) {
 }
 
 /**
- * A 204 × 288 card (420 wide for Bedroom) with an uppercase title and an optional [status] line
+ * A 204 × 288 card (330 wide for Bedroom) with an uppercase title and an optional [status] line
  * beside it; taps on it do not reach the screen behind.
  */
 @Composable

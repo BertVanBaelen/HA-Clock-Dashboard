@@ -190,4 +190,64 @@ class NightTest {
         // Range mode (heat_cool) has no single target.
         assertNull(Bedroom.target(state("""{"entity_id":"climate.bedroom","state":"heat_cool","attributes":{"target_temp_low":18,"target_temp_high":24}}""")))
     }
+
+    @Test
+    fun brightnessStepsAroundAndParses() {
+        assertEquals(NightBrightness.DIM, NightBrightness.NORMAL.next())
+        assertEquals(NightBrightness.SUPERDIM, NightBrightness.DIM.next())
+        assertEquals(NightBrightness.NORMAL, NightBrightness.SUPERDIM.next())
+        assertEquals(NightBrightness.SUPERDIM, NightBrightness.parse("superdim"))
+        assertNull(NightBrightness.parse("bright"))
+        assertEquals(ClockSize.L, ClockSize.parse("l"))
+        assertEquals(listOf(64, 96, 132, 168), ClockSize.entries.map { it.frame })
+    }
+
+    @Test
+    fun checklistDayStartsAtFour() {
+        val evening = ZonedDateTime.of(2026, 11, 3, 22, 30, 0, 0, zone)
+        val night = ZonedDateTime.of(2026, 11, 4, 2, 0, 0, 0, zone)
+        val morning = ZonedDateTime.of(2026, 11, 4, 4, 0, 0, 0, zone)
+        val fourToday = ZonedDateTime.of(2026, 11, 3, 4, 0, 0, 0, zone).toInstant()
+        assertEquals(fourToday, Checklist.dayStart(evening))
+        assertEquals(fourToday, Checklist.dayStart(night))
+        assertEquals(morning.toInstant(), Checklist.dayStart(morning))
+        // Ticked at 22:30: still that day at 02:00, a new day from 04:00.
+        val ticked = evening.toInstant().toEpochMilli()
+        assertFalse(Checklist.resetDue(ticked, night))
+        assertTrue(Checklist.resetDue(ticked, morning))
+    }
+
+    @Test
+    fun checklistTicksFromHomeAssistantOrThePhone() {
+        val item = TodoItem("1", "Take medication", "completed")
+        assertTrue(Checklist.done(item, sync = true, local = emptySet()))
+        assertFalse(Checklist.done(item, sync = false, local = emptySet()))
+        assertTrue(Checklist.done(item.copy(status = "needs_action"), sync = false, local = setOf("1")))
+    }
+
+    @Test
+    fun checklistOpensInTheNightWindowUntilDoneOrPutAway() {
+        val start = java.time.LocalTime.of(22, 0)
+        val end = java.time.LocalTime.of(7, 0)
+        val at = ZonedDateTime.of(2026, 11, 3, 22, 30, 0, 0, zone)
+        assertTrue(Checklist.opens(at, start, end, open = 2, closedAt = null))
+        assertFalse(Checklist.opens(at, start, end, open = 0, closedAt = null))
+        assertFalse(Checklist.opens(at.withHour(20), start, end, open = 2, closedAt = null))
+        // "Dim the screen" at 22:40 keeps it away that night, also after midnight, not the next evening.
+        val closed = at.plusMinutes(10).toInstant().toEpochMilli()
+        assertFalse(Checklist.opens(at.plusMinutes(20), start, end, 2, closed))
+        assertFalse(Checklist.opens(at.plusHours(4), start, end, 2, closed))
+        assertTrue(Checklist.opens(at.plusDays(1), start, end, 2, closed))
+    }
+
+    @Test
+    fun todoItemsDecode() {
+        val items = HaJson.decodeFromString(
+            ListSerializer(TodoItem.serializer()),
+            """[{"summary":"Front door locked","uid":"a1","status":"needs_action","description":"x"},{"summary":"Water","uid":"b2","status":"completed","due":"2026-11-03"}]""",
+        )
+        assertEquals(listOf("a1", "b2"), items.map { it.uid })
+        assertFalse(items[0].completed)
+        assertTrue(items[1].completed)
+    }
 }

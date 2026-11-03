@@ -3,7 +3,9 @@ package alarmclock.vanbaelen.dev.ui.screens
 import alarmclock.vanbaelen.dev.App
 import alarmclock.vanbaelen.dev.R
 import alarmclock.vanbaelen.dev.core.Alarm
+import alarmclock.vanbaelen.dev.core.Checklist
 import alarmclock.vanbaelen.dev.core.NightAlarm
+import alarmclock.vanbaelen.dev.core.NightBrightness
 import alarmclock.vanbaelen.dev.core.NightPlan
 import alarmclock.vanbaelen.dev.core.NightWidget
 import alarmclock.vanbaelen.dev.core.Schedule
@@ -21,6 +23,8 @@ import alarmclock.vanbaelen.dev.ui.LocalAppColors
 import alarmclock.vanbaelen.dev.ui.MainViewModel
 import alarmclock.vanbaelen.dev.ui.NightGlow
 import alarmclock.vanbaelen.dev.ui.NightTokens
+import alarmclock.vanbaelen.dev.ui.SuperdimGlow
+import alarmclock.vanbaelen.dev.ui.SuperdimInk
 import alarmclock.vanbaelen.dev.ui.tokens
 import android.app.Activity
 import android.app.Application
@@ -35,6 +39,8 @@ import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -69,9 +75,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -80,6 +88,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
@@ -115,6 +125,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import kotlin.math.min
@@ -125,10 +136,13 @@ object NightDisplay {
     /** Alarm id and ring time whose sunrise the night display showed: the ringing screen then starts bright. */
     @Volatile
     var sunriseShown: Pair<String, Long>? = null
+
+    /** When the checklist was put away ("Dim the screen"); it opens by itself again after 04:00. */
+    val checklistClosedAt = MutableStateFlow<Long?>(null)
 }
 
-/** Resting clock, widgets open, or choosing widgets (docs/design.md, Night display). */
-enum class NightMode { IDLE, WIDGETS, EDIT }
+/** Resting clock, widgets open, choosing widgets, display settings, or the checklist (docs/design.md, Night display). */
+enum class NightMode { IDLE, WIDGETS, EDIT, DISPLAY, CHECKLIST }
 
 class NightViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as App
@@ -139,15 +153,37 @@ class NightViewModel(application: Application) : AndroidViewModel(application) {
     val weather = app.night.weather
     val home = app.night.home
     val agenda = app.night.agenda
+    val checklist = app.night.checklist
     val problem = app.night.problem
 
     /** A tap on the screen: open the widgets, hide them, or leave the widget choice. */
     fun tap() {
-        mode.value = when (mode.value) {
+        mode.value = when (val m = mode.value) {
             NightMode.IDLE -> NightMode.WIDGETS
             NightMode.WIDGETS -> NightMode.IDLE
             NightMode.EDIT -> NightMode.WIDGETS
+            NightMode.DISPLAY, NightMode.CHECKLIST -> m
         }
+    }
+
+    /** A swipe up shows the widgets, a swipe down hides them or puts the checklist away. */
+    fun swipe(up: Boolean) {
+        when {
+            mode.value == NightMode.DISPLAY -> Unit
+            up -> mode.value = NightMode.WIDGETS
+            mode.value == NightMode.CHECKLIST -> closeChecklist()
+            else -> mode.value = NightMode.IDLE
+        }
+    }
+
+    /** "Dim the screen": the resting clock, and the checklist stays away until after 04:00. */
+    fun closeChecklist() {
+        NightDisplay.checklistClosedAt.value = System.currentTimeMillis()
+        mode.value = NightMode.IDLE
+    }
+
+    fun tick(uid: String, done: Boolean) {
+        viewModelScope.launch { app.night.tick(uid, done)?.let { flash.value = Format.problem(app, it) } }
     }
 
     suspend fun refresh(date: LocalDate) = app.night.refresh(date, ZoneId.systemDefault())
@@ -263,6 +299,12 @@ fun NightScreen(vm: MainViewModel, onExit: () -> Unit, onRinging: () -> Unit, on
     var rang by remember { mutableStateOf<String?>(null) }
     val battery = rememberBattery()
     val dnd = rememberDnd()
+    val checklist by night.checklist.collectAsState()
+    val checklistClosedAt by NightDisplay.checklistClosedAt.collectAsState()
+    // Off until tapped: a tap shows the clock for a few seconds (peek counts the taps).
+    var peek by remember { mutableIntStateOf(0) }
+    var peeking by remember { mutableStateOf(false) }
+    var touchedAt by remember { mutableLongStateOf(0L) }
     val zone = ZoneId.systemDefault()
 
     DisposableEffect(Unit) {
@@ -311,14 +353,28 @@ fun NightScreen(vm: MainViewModel, onExit: () -> Unit, onRinging: () -> Unit, on
             night.flash.value = null
         }
     }
+    LaunchedEffect(peek) {
+        if (peek == 0) return@LaunchedEffect
+        peeking = true
+        delay(PEEK_MS)
+        peeking = false
+    }
     BackHandler {
-        if (mode == NightMode.EDIT) night.mode.value = NightMode.WIDGETS else onExit()
+        when (mode) {
+            NightMode.EDIT -> night.mode.value = NightMode.WIDGETS
+            NightMode.DISPLAY -> night.mode.value = NightMode.EDIT
+            else -> onExit()
+        }
     }
 
     // The sunrise before an alarm: colours and window brightness follow its progress.
     val sunrise = Sunrise.running(scheduled, now)
     SideEffect { if (sunrise != null) NightDisplay.sunriseShown = sunrise.first.alarmId to sunrise.first.ringAt }
-    val brightness = sunrise?.let { Sunrise.brightness(it.second) } ?: Sunrise.NIGHT_BRIGHTNESS
+    // Superdim and Off until tapped are for the resting clock; widgets and settings show at normal brightness.
+    val resting = sunrise == null && mode == NightMode.IDLE
+    val superdim = resting && settings.nightBrightness == NightBrightness.SUPERDIM
+    val dark = resting && settings.screenOffUntilTap
+    val brightness = sunrise?.let { Sunrise.brightness(it.second) } ?: if (superdim) Sunrise.SUPERDIM_BRIGHTNESS else Sunrise.NIGHT_BRIGHTNESS
     LaunchedEffect(brightness) {
         activity?.window?.let { w -> w.attributes = w.attributes.apply { screenBrightness = brightness } }
     }
@@ -339,12 +395,38 @@ fun NightScreen(vm: MainViewModel, onExit: () -> Unit, onRinging: () -> Unit, on
     val sources = listOf(
         settings.nightWidgets, settings.weatherEntity, settings.calendarEntities,
         settings.roomTemperatureEntity, settings.nightLightEntity, settings.heatingEntity, settings.homeEntities,
+        settings.checklistEntity, settings.checklistActions, settings.checklistShow, settings.checklistSync,
     )
     LaunchedEffect(target, sources) {
         while (true) {
             night.refresh(target)
             delay(15 * 60_000L)
         }
+    }
+
+    // The checklist takes the place of the resting clock in the night window until all is ticked.
+    val list = checklist
+    val checklistOpens = sunrise == null && list != null && run {
+        val start = runCatching { LocalTime.parse(settings.nightStart) }.getOrNull()
+        val end = runCatching { LocalTime.parse(settings.nightEnd) }.getOrNull()
+        start != null && end != null &&
+            Checklist.opens(Instant.ofEpochMilli(now).atZone(zone), start, end, list.open, checklistClosedAt)
+    }
+    LaunchedEffect(checklistOpens, mode, list == null) {
+        when {
+            mode == NightMode.IDLE && checklistOpens -> night.mode.value = NightMode.CHECKLIST
+            mode == NightMode.CHECKLIST && list == null -> night.mode.value = NightMode.IDLE
+        }
+    }
+    // With Superdim the widgets show at normal brightness for a moment, then hide again.
+    LaunchedEffect(mode, touchedAt, settings.nightBrightness) {
+        if (mode == NightMode.WIDGETS && settings.nightBrightness == NightBrightness.SUPERDIM) {
+            delay(SUPERDIM_WIDGETS_MS)
+            night.mode.value = NightMode.IDLE
+        }
+    }
+    val onTap by rememberUpdatedState {
+        if (dark && !peeking) peek++ else night.tap()
     }
     val alarmLine = when {
         snoozed != null && (upcoming == null || snoozed.ringAt <= upcoming.ringAt) ->
@@ -355,20 +437,30 @@ fun NightScreen(vm: MainViewModel, onExit: () -> Unit, onRinging: () -> Unit, on
         else -> stringResource(R.string.night_alarm_line, Format.ring(context, upcoming.ringAt, now), Format.until(context, upcoming.ringAt, now))
     }
     val batteryLine = if (battery.plugged) stringResource(R.string.night_charging, battery.percent) else stringResource(R.string.night_battery, battery.percent)
+    // The tiny sign while the screen is off: the next time anything rings.
+    val signTime = listOfNotNull(snoozed, nextNormal).minByOrNull { it.ringAt }?.let { Format.time(context, it.ringAt) }
 
     CompositionLocalProvider(LocalAppColors provides palette) {
         Box(
             Modifier
                 .fillMaxSize()
                 .background(palette.bg)
-                .pointerInput(Unit) { detectTapGestures(onTap = { night.tap() }) }
+                // Any touch, also on a widget, keeps the Superdim widgets up a while longer.
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            if (awaitPointerEvent(PointerEventPass.Initial).type == PointerEventType.Press) touchedAt = System.currentTimeMillis()
+                        }
+                    }
+                }
+                .pointerInput(Unit) { detectTapGestures(onTap = { onTap() }) }
                 .pointerInput(Unit) {
                     var dy = 0f
                     detectVerticalDragGestures(
                         onDragStart = { dy = 0f },
                         onDragEnd = {
                             val limit = 70.dp.toPx()
-                            if (dy < -limit) night.mode.value = NightMode.WIDGETS else if (dy > limit) night.mode.value = NightMode.IDLE
+                            if (dy < -limit) night.swipe(up = true) else if (dy > limit) night.swipe(up = false)
                         },
                         onVerticalDrag = { change, amount ->
                             change.consume()
@@ -383,7 +475,8 @@ fun NightScreen(vm: MainViewModel, onExit: () -> Unit, onRinging: () -> Unit, on
                 val f = NightFrame(min(maxWidth / 844.dp, maxHeight / 390.dp), LocalDensity.current)
                 val dim = when {
                     sunrise != null -> 1f
-                    settings.nightDimmer -> 0.45f
+                    superdim -> 0.75f
+                    settings.nightBrightness == NightBrightness.DIM -> 0.45f
                     else -> 0.9f
                 }
                 val contentAlpha by animateFloatAsState(dim, tween(250), label = "dim")
@@ -405,6 +498,11 @@ fun NightScreen(vm: MainViewModel, onExit: () -> Unit, onRinging: () -> Unit, on
                         planItem = planItem,
                         target = target,
                         flash = flash,
+                        superdim = superdim,
+                        dark = dark,
+                        peek = peek,
+                        peeking = peeking,
+                        signTime = signTime,
                         onSettings = onSettings,
                     )
                 }
@@ -412,6 +510,12 @@ fun NightScreen(vm: MainViewModel, onExit: () -> Unit, onRinging: () -> Unit, on
         }
     }
 }
+
+/** How long a tap shows the clock while the screen is off until tapped. */
+private const val PEEK_MS = 5_000L
+
+/** How long the widgets stay up untouched with Superdim. */
+private const val SUPERDIM_WIDGETS_MS = 30_000L
 
 @Composable
 private fun NightContent(
@@ -431,26 +535,42 @@ private fun NightContent(
     planItem: AlarmItem?,
     target: LocalDate,
     flash: String?,
+    superdim: Boolean,
+    dark: Boolean,
+    peek: Int,
+    peeking: Boolean,
+    signTime: String?,
     onSettings: () -> Unit,
 ) {
     val context = LocalContext.current
     val t = tokens
     val idle = mode == NightMode.IDLE
+    val widgets = mode == NightMode.WIDGETS || mode == NightMode.EDIT
     val w by animateFloatAsState(if (idle) 0f else 1f, tween(600, easing = EaseSoft), label = "clock")
     val idleA by animateFloatAsState(if (idle) 1f else 0f, tween(300), label = "idle")
-    val sideA by animateFloatAsState(if (idle) 0f else 1f, tween(350, delayMillis = if (idle) 0 else 200), label = "side")
+    // Off until tapped: the resting clock fades in on a tap and slowly out again.
+    val restA by animateFloatAsState(if (!dark || peeking) 1f else 0f, tween(if (!dark || peeking) 400 else 1_400), label = "rest")
+    val clockA by animateFloatAsState(if (mode == NightMode.DISPLAY) 0f else 1f, tween(300), label = "clockShown")
+    val sideA by animateFloatAsState(if (widgets) 1f else 0f, tween(350, delayMillis = if (widgets) 200 else 0), label = "side")
     val cardsA by animateFloatAsState(if (mode == NightMode.WIDGETS) 1f else 0f, tween(350, delayMillis = if (mode == NightMode.WIDGETS) 150 else 0), label = "cards")
     val editA by animateFloatAsState(if (mode == NightMode.EDIT) 1f else 0f, tween(300), label = "edit")
+    val displayA by animateFloatAsState(if (mode == NightMode.DISPLAY) 1f else 0f, tween(300), label = "display")
+    val listA by animateFloatAsState(if (mode == NightMode.CHECKLIST) 1f else 0f, tween(350, delayMillis = if (mode == NightMode.CHECKLIST) 150 else 0), label = "list")
     var clockSize by remember { mutableStateOf(IntSize.Zero) }
     val shiftX = f.dp(shift.x)
     val shiftY = f.dp(shift.y)
+    // Resting layout: the clock, the alarm line and the action line, centred together.
+    val clockFrame = settings.clockSize.frame
+    val clockTop = (390 - (clockFrame + 120)) / 2
+    val lineY = clockTop + clockFrame + 20
+    val restingInk = if (superdim) SuperdimInk else t.muted
 
     Box(Modifier.fillMaxSize()) {
-        // The clock: big and centred while resting, small at the top left with the widgets.
+        // The clock: big and centred while resting, small at the top left otherwise.
         Text(
             Format.clock(context, Instant.ofEpochMilli(now).atZone(zone).toLocalTime()),
-            style = nightText(f, 176, FontWeight.ExtraLight).copy(letterSpacing = (-0.045).em, lineHeight = f.sp(176)),
-            color = glow,
+            style = nightText(f, clockFrame, if (superdim) FontWeight.Thin else FontWeight.ExtraLight).copy(letterSpacing = (-0.045).em, lineHeight = f.sp(clockFrame)),
+            color = if (superdim) SuperdimGlow else glow,
             maxLines = 1,
             softWrap = false,
             modifier = Modifier
@@ -458,44 +578,73 @@ private fun NightContent(
                 .graphicsLayer {
                     transformOrigin = TransformOrigin(0f, 0f)
                     val idleX = (f.dp(844).toPx() - clockSize.width) / 2f + shiftX.toPx()
-                    val idleY = f.dp(44).toPx() + shiftY.toPx()
+                    val idleY = f.dp(clockTop).toPx() + shiftY.toPx()
                     translationX = mix(idleX, f.dp(32).toPx(), w)
                     translationY = mix(idleY, f.dp(30).toPx(), w)
-                    scaleX = 1f - 0.56f * w
+                    scaleX = mix(1f, SMALL_CLOCK / clockFrame, w)
                     scaleY = scaleX
+                    alpha = clockA * mix(restA, 1f, w)
                 },
         )
 
-        // Resting: next alarm, its actions on a line, and the hint.
+        // Resting: next alarm, its actions on a line, and the hint (none of it with Superdim).
         Row(
             Modifier
                 .fillMaxWidth()
-                .offset(x = shiftX, y = f.dp(240) + shiftY)
-                .graphicsLayer { alpha = idleA },
+                .offset(x = shiftX, y = f.dp(lineY) + shiftY)
+                .graphicsLayer { alpha = idleA * restA },
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(AppIcons.bell, null, tint = t.muted, modifier = Modifier.size(f.dp(16)))
+            Icon(AppIcons.bell, null, tint = restingInk, modifier = Modifier.size(f.dp(16)))
             Spacer(Modifier.width(f.dp(8)))
-            Text(alarmLine, style = nightText(f, 16), color = t.muted)
+            Text(alarmLine, style = nightText(f, 16), color = restingInk)
         }
         planItem?.let { item ->
             val offsets = item.alarm.actions.filter { it.enabled }.mapNotNull { it.signedOffset }
-            if (offsets.isNotEmpty() && upcoming != null) {
+            if (offsets.isNotEmpty() && upcoming != null && !superdim) {
                 NightTimeline(
                     f, offsets, upcoming.ringAt,
-                    Modifier.offset(x = f.dp(222) + shiftX, y = f.dp(296) + shiftY).graphicsLayer { alpha = idleA * if (upcoming.skipped) 0.3f else 1f },
+                    Modifier.offset(x = f.dp(222) + shiftX, y = f.dp(lineY + 56) + shiftY).graphicsLayer { alpha = idleA * restA * if (upcoming.skipped) 0.3f else 1f },
                 )
             }
         }
-        Text(
-            stringResource(R.string.night_hint),
-            style = nightText(f, 12),
-            color = t.muted,
-            modifier = Modifier.align(Alignment.TopEnd).offset(x = -f.dp(24), y = f.dp(20)).graphicsLayer { alpha = 0.75f * idleA },
-        )
+        if (!superdim && !dark) {
+            Text(
+                stringResource(R.string.night_hint),
+                style = nightText(f, 12),
+                color = t.muted,
+                modifier = Modifier.align(Alignment.TopEnd).offset(x = -f.dp(24), y = f.dp(20)).graphicsLayer { alpha = 0.75f * idleA },
+            )
+        }
 
-        // With the widgets: alarm and battery under the small clock, Do Not Disturb, the dimmer, and the buttons.
+        // Screen off until tapped: only the alarm sign stays lit; a tap shows the clock with a bar running out.
+        if (dark && signTime != null) {
+            AlarmSign(
+                f,
+                signTime,
+                color = if (superdim) SuperdimInk else DarkSign,
+                modifier = Modifier.align(Alignment.BottomEnd).offset(x = -f.dp(22), y = -f.dp(18)).graphicsLayer { alpha = idleA * (1f - restA) },
+            )
+        }
+        if (dark && peeking) {
+            val bar = remember(peek) { Animatable(1f) }
+            LaunchedEffect(peek) { bar.animateTo(0f, tween(PEEK_MS.toInt(), easing = LinearEasing)) }
+            Box(
+                Modifier
+                    .offset(x = f.dp(322), y = f.dp(344))
+                    .size(f.dp(200), f.dp(2))
+                    .graphicsLayer {
+                        transformOrigin = TransformOrigin(0f, 0.5f)
+                        scaleX = bar.value
+                        alpha = idleA
+                    }
+                    .clip(RoundedCornerShape(f.dp(1)))
+                    .background(t.line),
+            )
+        }
+
+        // With the widgets: alarm and battery under the small clock, Do Not Disturb, the brightness, and the buttons.
         Column(
             Modifier.offset(x = f.dp(32), y = f.dp(112)).width(f.dp(230)).graphicsLayer { alpha = sideA },
             verticalArrangement = Arrangement.spacedBy(f.dp(8)),
@@ -509,7 +658,18 @@ private fun NightContent(
                 Text(batteryLine, style = nightText(f, 13), color = t.muted)
             }
         }
-        if (!idle) {
+        // With the checklist: the alarm and when the list shows.
+        Column(
+            Modifier.offset(x = f.dp(32), y = f.dp(112)).width(f.dp(220)).graphicsLayer { alpha = listA },
+            verticalArrangement = Arrangement.spacedBy(f.dp(8)),
+        ) {
+            Text(alarmLine, style = nightText(f, 14), color = t.ink)
+            Text(checklistIntro(settings.nightStart), style = nightText(f, 13).copy(lineHeight = f.sp(19.5f)), color = t.muted)
+        }
+        if (widgets) {
+            // Resolved while composing, so they follow a configuration change (lint).
+            val dndAccess = stringResource(R.string.night_dnd_access)
+            val superdimFlash = stringResource(R.string.night_superdim_flash)
             NightPill(
                 f,
                 stringResource(if (dnd.on) R.string.night_dnd_on else R.string.night_dnd),
@@ -523,28 +683,43 @@ private fun NightContent(
                     night.setDnd(!dnd.on)
                 } else {
                     // Android only lets an app change Do Not Disturb after the user allows it once.
-                    night.flash.value = context.getString(R.string.night_dnd_access)
+                    night.flash.value = dndAccess
                     runCatching { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) }
                 }
             }
+            val level = settings.nightBrightness
             NightPill(
                 f,
-                stringResource(if (settings.nightDimmer) R.string.night_dimmer_on else R.string.night_dimmer),
-                icon = if (settings.nightDimmer) AppIcons.eyeClosed else AppIcons.eye,
+                brightnessName(level),
+                icon = if (level == NightBrightness.NORMAL) AppIcons.eye else AppIcons.eyeClosed,
                 outlined = true,
-                fill = if (settings.nightDimmer) t.soft else Color.Transparent,
-                description = stringResource(R.string.night_dimmer_hint),
+                fill = if (level != NightBrightness.NORMAL) t.soft else Color.Transparent,
+                description = stringResource(R.string.night_brightness_hint),
                 modifier = Modifier.offset(x = f.dp(24), y = f.dp(318)).graphicsLayer { alpha = sideA },
-            ) { night.updateSettings { it.copy(nightDimmer = !it.nightDimmer) } }
+            ) {
+                val next = level.next()
+                night.updateSettings { it.copy(nightBrightness = next) }
+                if (next == NightBrightness.SUPERDIM) night.flash.value = superdimFlash
+            }
+        }
+        if (!idle && mode != NightMode.CHECKLIST) {
             Row(
-                Modifier.align(Alignment.TopEnd).offset(x = -f.dp(16), y = f.dp(10)).graphicsLayer { alpha = sideA },
+                Modifier.align(Alignment.TopEnd).offset(x = -f.dp(16), y = f.dp(10)),
                 horizontalArrangement = Arrangement.spacedBy(f.dp(6)),
             ) {
-                if (mode == NightMode.WIDGETS) {
-                    NightPill(f, stringResource(R.string.night_edit_widgets), muted = true) { night.mode.value = NightMode.EDIT }
-                    NightPill(f, stringResource(R.string.night_hide), icon = AppIcons.moon, outlined = true) { night.mode.value = NightMode.IDLE }
-                } else {
-                    NightPill(f, stringResource(R.string.done), fill = t.accent, textColor = t.onAccent) { night.mode.value = NightMode.WIDGETS }
+                when (mode) {
+                    NightMode.WIDGETS -> {
+                        if (settings.checklistEntity != null && settings.checklistShow) {
+                            NightPill(f, stringResource(R.string.checklist_title), icon = AppIcons.checklist, muted = true) { night.mode.value = NightMode.CHECKLIST }
+                        }
+                        NightPill(f, stringResource(R.string.night_edit_widgets), muted = true) { night.mode.value = NightMode.EDIT }
+                        NightPill(f, stringResource(R.string.night_hide), icon = AppIcons.moon, outlined = true) { night.mode.value = NightMode.IDLE }
+                    }
+                    NightMode.EDIT -> {
+                        NightPill(f, stringResource(R.string.night_display_settings), muted = true) { night.mode.value = NightMode.DISPLAY }
+                        NightPill(f, stringResource(R.string.done), fill = t.accent, textColor = t.onAccent) { night.mode.value = NightMode.WIDGETS }
+                    }
+                    else -> NightPill(f, stringResource(R.string.done), fill = t.accent, textColor = t.onAccent) { night.mode.value = NightMode.EDIT }
                 }
             }
         }
@@ -576,6 +751,32 @@ private fun NightContent(
                 modifier = Modifier.offset(x = f.dp(280), y = f.dp(66)).graphicsLayer { alpha = editA },
             )
         }
+        if (mode == NightMode.DISPLAY || displayA > 0f) {
+            DisplaySettings(
+                f = f,
+                night = night,
+                settings = settings,
+                clock = Format.clock(context, Instant.ofEpochMilli(now).atZone(zone).toLocalTime()),
+                alarm = upcoming?.takeIf { !it.skipped }?.let { Format.time(context, it.ringAt) },
+                modifier = Modifier.graphicsLayer { alpha = displayA },
+            )
+        }
+        if (mode == NightMode.CHECKLIST || listA > 0f) {
+            val checklist by night.checklist.collectAsState()
+            val problem by night.problem.collectAsState()
+            ChecklistPanel(
+                f = f,
+                night = night,
+                info = checklist,
+                waiting = problem?.let { Format.problem(context, it) } ?: stringResource(R.string.loading),
+                modifier = Modifier
+                    .offset(x = f.dp(280), y = f.dp(20))
+                    .graphicsLayer {
+                        alpha = listA
+                        translationY = (1f - listA) * f.dp(16).toPx()
+                    },
+            )
+        }
         Text(
             flash ?: "",
             style = nightText(f, 14),
@@ -585,6 +786,12 @@ private fun NightContent(
         )
     }
 }
+
+/** The clock's size at the top left (with the widgets or the checklist), in frame units. */
+private const val SMALL_CLOCK = 77.5f
+
+/** The alarm sign while the screen is off until tapped. */
+private val DarkSign = Color(0xFF6E4A2A)
 
 /** The next alarm's actions as dots on a 400 wide line, with the first action, the alarm and the last action labelled. */
 @Composable

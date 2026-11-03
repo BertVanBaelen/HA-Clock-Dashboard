@@ -89,6 +89,16 @@ val NightTokens = AppColors(
 /** The night display's clock. */
 val NightGlow = Color(0xFFE08C45)
 
+/** Bright text on the night display: values, titles, selected choices. */
+val NightBright = Color(0xFFFFE9D2)
+
+/** A selected choice or person on the night display. */
+val NightSelected = Color(0xFF2A1C10)
+
+/** Superdim: deep red only, the clock and its alarm line. */
+val SuperdimGlow = Color(0xFF7A1E12)
+val SuperdimInk = Color(0xFF5A170E)
+
 /** End of a sunrise and the good-morning screen after it. */
 val DayTokens = AppColors(
     dark = false,
