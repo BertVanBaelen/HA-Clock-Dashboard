@@ -133,6 +133,14 @@ fun SettingsScreen(vm: MainViewModel, nav: NavHostController) {
             Setting(stringResource(R.string.night_from), Format.time(context, settings.nightStart)) { editTime = "start" }
             Setting(stringResource(R.string.night_until), Format.time(context, settings.nightEnd)) { editTime = "end" }
             Setting(stringResource(R.string.night_open), null) { nav.navigate(Routes.NIGHT) }
+            Setting(
+                stringResource(R.string.checklist_settings),
+                when {
+                    settings.checklistEntity == null -> stringResource(R.string.not_set)
+                    !settings.checklistShow -> stringResource(R.string.checklist_hidden)
+                    else -> stringResource(R.string.checklist_on, Format.time(context, settings.nightStart))
+                },
+            ) { nav.navigate(Routes.CHECKLIST) }
             Hint(stringResource(R.string.widgets_entities_intro), modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             val notSet = stringResource(R.string.not_set)
             EntitySlot.entries.forEach { slot ->

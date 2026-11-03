@@ -2,9 +2,11 @@ package alarmclock.vanbaelen.dev.data
 
 import alarmclock.vanbaelen.dev.App
 import alarmclock.vanbaelen.dev.core.CalendarEvent
+import alarmclock.vanbaelen.dev.core.Checklist
 import alarmclock.vanbaelen.dev.core.Forecast
 import alarmclock.vanbaelen.dev.core.HaState
 import alarmclock.vanbaelen.dev.core.NightWidget
+import alarmclock.vanbaelen.dev.core.TodoItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,6 +16,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 
 /** The weather entity now, its forecasts and the sun times (sun.sun), for the weather widget and the good-morning screen. */
 data class WeatherInfo(
@@ -36,6 +39,14 @@ data class HomeInfo(val lamp: HaState?, val heating: HaState?, val temperature: 
 /** Timed events of [date], soonest first. */
 data class AgendaInfo(val date: LocalDate, val events: List<CalendarEvent>)
 
+/** The bedtime checklist: the to-do list's name and its items. */
+data class ChecklistInfo(val name: String, val items: List<ChecklistRow>) {
+    val open: Int get() = items.count { !it.done }
+}
+
+/** A checklist item, whether it is ticked, and the name of what ticking it runs. */
+data class ChecklistRow(val item: TodoItem, val done: Boolean, val runs: String?)
+
 /**
  * Widget data of the night display, read from Home Assistant (never needed for ringing). Kept in
  * memory, refreshed while the night display or the good-morning screen is shown.
@@ -45,10 +56,12 @@ class NightData(private val app: App) {
     private val _weather = MutableStateFlow<WeatherInfo?>(null)
     private val _home = MutableStateFlow<HomeInfo?>(null)
     private val _agenda = MutableStateFlow<AgendaInfo?>(null)
+    private val _checklist = MutableStateFlow<ChecklistInfo?>(null)
     private val _problem = MutableStateFlow<Problem?>(null)
     val weather: StateFlow<WeatherInfo?> = _weather.asStateFlow()
     val home: StateFlow<HomeInfo?> = _home.asStateFlow()
     val agenda: StateFlow<AgendaInfo?> = _agenda.asStateFlow()
+    val checklist: StateFlow<ChecklistInfo?> = _checklist.asStateFlow()
     /** Problem of the last refresh; the widgets keep their last values meanwhile. */
     val problem: StateFlow<Problem?> = _problem.asStateFlow()
 
@@ -67,7 +80,46 @@ class NightData(private val app: App) {
         if (NightWidget.WEATHER in s.nightWidgets) attempt { _weather.value = s.weatherEntity?.let { readWeather(it) } }
         if (NightWidget.HOME in s.nightWidgets) attempt { _home.value = readHome(s) }
         if (NightWidget.CALENDAR in s.nightWidgets) attempt { _agenda.value = s.calendarEntities.takeIf { it.isNotEmpty() }?.let { readAgenda(it, date, zone) } }
+        attempt { _checklist.value = s.checklistEntity?.takeIf { s.checklistShow }?.let { readChecklist(it, s, zone) } }
         _problem.value = problem
+    }
+
+    /** Ticks or unticks a checklist item; ticking runs its automation or script. Shown right away, undone when it fails. */
+    suspend fun tick(uid: String, done: Boolean): Problem? {
+        val s = app.prefs.settings.value
+        val entity = s.checklistEntity ?: return null
+        fun show(ticked: Boolean) {
+            _checklist.value = _checklist.value?.let { c -> c.copy(items = c.items.map { if (it.item.uid == uid) it.copy(done = ticked) else it }) }
+        }
+        show(done)
+        try {
+            if (s.checklistSync) {
+                app.ha.call("todo", "update_item", entity, mapOf("item" to uid, "status" to if (done) "completed" else "needs_action"))
+            } else {
+                app.prefs.checklistTicks = if (done) app.prefs.checklistTicks + uid else app.prefs.checklistTicks - uid
+            }
+        } catch (e: Exception) {
+            show(!done)
+            return problemOf(e)
+        }
+        val action = s.checklistActions[uid]?.takeIf { done } ?: return null
+        return try {
+            run(action)
+            null
+        } catch (e: Exception) {
+            problemOf(e)
+        }
+    }
+
+    /** Items of a to-do list, for choosing what they run in Settings. */
+    suspend fun todoItems(entityId: String): List<TodoItem> = app.ha.todoItems(entityId)
+
+    /** Runs what a checklist item is linked to: an automation (its actions), a script, or anything that turns on. */
+    private suspend fun run(entityId: String) {
+        when (val domain = entityId.substringBefore('.')) {
+            "automation" -> app.ha.call(domain, "trigger", entityId)
+            else -> app.ha.call(domain, "turn_on", entityId)
+        }
     }
 
     /** Only the weather, for the good-morning screen. */
@@ -169,6 +221,32 @@ class NightData(private val app: App) {
             heating = s.heatingEntity?.let { app.ha.state(it) },
             temperature = s.roomTemperatureEntity?.let { app.ha.state(it) },
             rows = s.homeEntities.mapNotNull { app.ha.state(it) },
+        )
+    }
+
+    /**
+     * The checklist's items. Once a day after 04:00 the list starts fresh: ticked items are
+     * unticked (in Home Assistant, or on this phone when ticks stay here).
+     */
+    private suspend fun readChecklist(entityId: String, s: LocalSettings, zone: ZoneId): ChecklistInfo {
+        var items = app.ha.todoItems(entityId)
+        val now = ZonedDateTime.now(zone)
+        val last = app.prefs.checklistResetAt
+        if (last == null || Checklist.resetDue(last, now)) {
+            if (last != null && s.checklistReset) {
+                if (s.checklistSync) {
+                    items.filter { it.completed }.forEach { app.ha.call("todo", "update_item", entityId, mapOf("item" to it.uid, "status" to "needs_action")) }
+                    items = items.map { it.copy(status = "needs_action") }
+                }
+                app.prefs.checklistTicks = emptySet()
+            }
+            app.prefs.checklistResetAt = now.toInstant().toEpochMilli()
+        }
+        val ticks = app.prefs.checklistTicks
+        val names = s.checklistActions.values.distinct().associateWith { id -> runCatching { app.ha.state(id)?.name }.getOrNull() ?: id }
+        return ChecklistInfo(
+            name = runCatching { app.ha.state(entityId)?.name }.getOrNull() ?: entityId,
+            items = items.map { ChecklistRow(it, Checklist.done(it, s.checklistSync, ticks), s.checklistActions[it.uid]?.let(names::get)) },
         )
     }
 

@@ -10,6 +10,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -26,6 +27,8 @@ object Sunrise {
     const val SHORT_MS = 30_000L
     /** Window brightness of the night display, where every sunrise starts. */
     const val NIGHT_BRIGHTNESS = 0.02f
+    /** Window brightness with Superdim: the lowest the phone allows (a black layer dims it further). */
+    const val SUPERDIM_BRIGHTNESS = 0f
 
     // Keyframes of the mockup's wake-up screen (ARGB): background and text colour.
     private val BACKGROUND = listOf(0f to 0xFF000000L, 0.35f to 0xFF2E1607L, 0.55f to 0xFFC77632L, 0.78f to 0xFFFFDDB5L, 1f to 0xFFFFFDF8L)
@@ -88,9 +91,73 @@ enum class NightWidget(val id: String) {
     }
 }
 
+/** Brightness of the night display (docs/design.md, Night display); the eye pill steps through them. */
+enum class NightBrightness(val id: String) {
+    NORMAL("normal"),
+    DIM("dim"),
+    SUPERDIM("superdim");
+
+    /** The eye pill's next level: Normal → Dim → Superdim → Normal. */
+    fun next(): NightBrightness = entries[(ordinal + 1) % entries.size]
+
+    companion object {
+        fun parse(id: String?): NightBrightness? = entries.firstOrNull { it.id == id }
+    }
+}
+
+/** Size of the resting clock, in units of the 844 × 390 night display frame. */
+enum class ClockSize(val id: String, val frame: Int) {
+    S("s", 64),
+    M("m", 96),
+    L("l", 132),
+    XL("xl", 168);
+
+    companion object {
+        fun parse(id: String?): ClockSize? = entries.firstOrNull { it.id == id }
+    }
+}
+
+/** One item of a Home Assistant to-do list (`todo.get_items`). */
+@Serializable
+data class TodoItem(
+    val uid: String = "",
+    val summary: String = "",
+    val status: String = "needs_action",
+) {
+    val completed: Boolean get() = status == "completed"
+}
+
 /**
- * The Bedroom widget's two slider rows (docs/design.md, Night display): the night lamp in 5 %
- * steps and the heating's target in its own steps, both set by sliding anywhere on the row.
+ * The bedtime checklist (docs/design.md, Night display): one Home Assistant to-do list per phone,
+ * shown instead of the resting clock in the night window until everything is ticked.
+ */
+object Checklist {
+    /** "Start fresh every day" unticks the list at this hour; it also starts a new checklist day. */
+    const val RESET_HOUR = 4
+
+    /** The latest 04:00 at or before [now]. */
+    fun dayStart(now: ZonedDateTime): Instant {
+        val today = now.toLocalDate().atTime(RESET_HOUR, 0).atZone(now.zone)
+        return (if (now.isBefore(today)) today.minusDays(1) else today).toInstant()
+    }
+
+    /** The list is due to be unticked: it was last reset before the latest 04:00. */
+    fun resetDue(lastReset: Long, now: ZonedDateTime): Boolean = lastReset < dayStart(now).toEpochMilli()
+
+    /** Ticked: Home Assistant's status when ticks go there too, else the ticks kept on this phone. */
+    fun done(item: TodoItem, sync: Boolean, local: Set<String>): Boolean = if (sync) item.completed else item.uid in local
+
+    /**
+     * The night display opens on the checklist: inside the night window, something left to tick,
+     * and not put away ("Dim the screen") since the latest 04:00.
+     */
+    fun opens(now: ZonedDateTime, start: LocalTime, end: LocalTime, open: Int, closedAt: Long?): Boolean =
+        open > 0 && NightWindow.contains(now.toLocalTime(), start, end) && (closedAt == null || closedAt < dayStart(now).toEpochMilli())
+}
+
+/**
+ * The Bedroom widget's two sliders (docs/design.md, Night display): the night lamp in 5 % steps
+ * and the heating's target in its own steps, both set by sliding anywhere on the bar.
  */
 object Bedroom {
     const val LAMP_STEP = 5
@@ -113,7 +180,7 @@ object Bedroom {
         return (Math.round(brightness / 255.0 * 100 / LAMP_STEP) * LAMP_STEP).toInt().coerceIn(LAMP_STEP, 100)
     }
 
-    /** The lamp at slider position [fraction]: 5 % steps, or off / on for a lamp without dimming. */
+    /** The lamp at slider position [fraction] (0 at the bottom): 5 % steps, or off / on for a lamp without dimming. */
     fun lampAt(fraction: Float, dimmable: Boolean): Int {
         val f = fraction.coerceIn(0f, 1f)
         return if (dimmable) Math.round(f * 100 / LAMP_STEP) * LAMP_STEP else if (f >= 0.5f) 100 else 0

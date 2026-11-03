@@ -5,6 +5,7 @@ import alarmclock.vanbaelen.dev.core.NightWindow
 import alarmclock.vanbaelen.dev.ui.AppTheme
 import alarmclock.vanbaelen.dev.ui.MainViewModel
 import alarmclock.vanbaelen.dev.ui.screens.AlarmListScreen
+import alarmclock.vanbaelen.dev.ui.screens.ChecklistSettingsScreen
 import alarmclock.vanbaelen.dev.ui.screens.ConflictScreen
 import alarmclock.vanbaelen.dev.ui.screens.HealthScreen
 import alarmclock.vanbaelen.dev.ui.screens.NightScreen
@@ -39,6 +40,7 @@ object Routes {
     const val SETTINGS = "settings"
     const val HEALTH = "health"
     const val NIGHT = "night"
+    const val CHECKLIST = "checklist"
 
     fun conflict(seq: Long) = "conflict/$seq"
 }
@@ -109,6 +111,9 @@ class MainActivity : ComponentActivity() {
                     }
                     composable(Routes.SETTINGS) { SettingsScreen(vm, controller) }
                     composable(Routes.HEALTH) { HealthScreen(guide = false, onDone = { controller.popBackStack() }) }
+                    composable(Routes.CHECKLIST) {
+                        ChecklistSettingsScreen(vm, onBack = { controller.popBackStack() }, onLogin = { controller.navigate(Routes.SETUP) })
+                    }
                     composable(Routes.NIGHT) {
                         NightScreen(
                             vm,

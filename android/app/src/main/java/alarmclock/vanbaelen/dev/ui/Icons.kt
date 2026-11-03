@@ -46,6 +46,8 @@ object AppIcons {
     val snow = stroke("M7 15a4 4 0 0 1-.6-7.96A5.5 5.5 0 0 1 17 8.5a3.5 3.5 0 0 1 0 6.5H7zM9 19h.01M13 19h.01M17 19h.01M11 21h.01M15 21h.01", 1.5f)
     val storm = stroke("M7 15a4 4 0 0 1-.6-7.96A5.5 5.5 0 0 1 17 8.5a3.5 3.5 0 0 1 0 6.5H7zM12 15l-2 4h4l-2 4", 1.5f)
     val fog = stroke("M4 10h16M6 14h12M8 18h8M7 6h10", 1.5f)
+    val check = stroke("M5 12l5 5 9-10", 3f)
+    val checklist = stroke("M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2", 1.6f)
     val wind = stroke("M3 9h11a3 3 0 1 0-3-3M3 15h15a3 3 0 1 1-3 3M3 12h8", 1.5f)
 
     /** Icon of a Home Assistant weather condition. */
