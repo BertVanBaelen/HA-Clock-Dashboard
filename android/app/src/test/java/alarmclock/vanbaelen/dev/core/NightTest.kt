@@ -47,6 +47,18 @@ class NightTest {
     }
 
     @Test
+    fun brightestPointStopsTheSunriseShort() {
+        val now = Instant.parse("2026-10-14T10:16:00Z")
+        val spec = RingSpec("a", 1, "Wake", "06:45", listOf("thu"), true, null, 9, sunriseMinutes = 20, sunriseBright = 60)
+        assertEquals(60, RingPlanner.next(spec, null, zone, now)!!.sunriseBright)
+        val half = ring(sunrise = 20).copy(sunriseBright = 50)
+        // Halfway in time is 0.5 of the way, capped to half of that.
+        assertEquals(0.25f, Sunrise.running(listOf(half), ringAt - 10 * 60_000L)!!.second, 0.0001f)
+        assertEquals(1f, Sunrise.cap(ring()), 0.0001f)
+        assertEquals(0.1f, Sunrise.cap(half.copy(sunriseBright = 0)), 0.0001f)
+    }
+
+    @Test
     fun sunriseColoursFollowTheKeyframes() {
         assertEquals(0xFF000000L, Sunrise.background(0f))
         assertEquals(0xFFFFFDF8L, Sunrise.background(1f))

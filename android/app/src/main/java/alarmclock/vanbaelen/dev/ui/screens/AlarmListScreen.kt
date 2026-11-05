@@ -130,6 +130,12 @@ fun AlarmListScreen(vm: MainViewModel, nav: NavController) {
     val editor: EditorViewModel = viewModel()
     val open by editor.isOpen.collectAsState()
     val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
+    // Before the portrait state below, so rotating back rebuilds it from what is open now.
+    if (isLandscape()) {
+        LandscapeAlarms(vm, nav, editor, snackbar)
+        return
+    }
     val scope = rememberCoroutineScope()
     val anchors = remember { MorphAnchors() }
     val reduced = remember { animationsOff(context) }
@@ -141,8 +147,13 @@ fun AlarmListScreen(vm: MainViewModel, nav: NavController) {
     var morph by remember { mutableStateOf<Morph?>(null) }
     var hiddenLine by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
+    // Landscape closes an untouched auto-opened alarm only after this state was built with it open.
+    LaunchedEffect(open) {
+        if (!open && !busy) {
+            listAlpha.snapTo(1f)
+            detailAlpha.snapTo(0f)
+        }
+    }
 
     suspend fun crossFade(toDetail: Boolean) = coroutineScope {
         launch { listAlpha.animateTo(if (toDetail) 0f else 1f, tween(300)) }
@@ -210,7 +221,7 @@ fun AlarmListScreen(vm: MainViewModel, nav: NavController) {
                 val detailOffsets = draft.actions.mapNotNull { it.signedOffset }
                 val from = item?.let { anchors.lines[it.alarm.id] }
                 val to = anchors.dot
-                if (reduced || item == null || editor.mode.value != DetailMode.VIEW || offsets.isEmpty() || detailOffsets.isEmpty() || from == null || to == null) {
+                if (reduced || item == null || editor.mode.value != DetailMode.VIEW || editor.tab.value != DetailTab.TIMELINE || offsets.isEmpty() || detailOffsets.isEmpty() || from == null || to == null) {
                     crossFade(toDetail = false)
                 } else {
                     hiddenLine = item.alarm.id
@@ -386,7 +397,7 @@ private fun AlarmList(
 }
 
 @Composable
-private fun Banners(
+internal fun Banners(
     vm: MainViewModel,
     nav: NavController,
     state: alarmclock.vanbaelen.dev.data.SyncStateRow,
@@ -447,7 +458,7 @@ private fun Banners(
 }
 
 @Composable
-private fun SyncStatus(lastSyncAt: Long?, problem: String?, pendingEdits: Int) {
+internal fun SyncStatus(lastSyncAt: Long?, problem: String?, pendingEdits: Int) {
     val context = LocalContext.current
     val last = lastSyncAt?.let { stringResource(R.string.last_synced, Format.ago(context, it)) } ?: stringResource(R.string.never_synced)
     val text = when (problem) {
@@ -578,7 +589,7 @@ private fun AlarmCard(item: AlarmItem, vm: MainViewModel, anchors: MorphAnchors,
 
 /** The alarm's actions as dots on a 180 dp line, with the alarm in the middle. */
 @Composable
-private fun MiniTimeline(alarmId: String, offsets: List<Int>, on: Boolean, hidden: Boolean, anchors: MorphAnchors) {
+internal fun MiniTimeline(alarmId: String, offsets: List<Int>, on: Boolean, hidden: Boolean, anchors: MorphAnchors) {
     val t = tokens
     val range = Timeline.range(offsets)
     DisposableEffect(alarmId) { onDispose { anchors.lines.remove(alarmId) } }

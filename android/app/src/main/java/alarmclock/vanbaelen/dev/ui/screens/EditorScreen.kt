@@ -42,8 +42,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -58,6 +57,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,8 +65,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -82,6 +85,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -92,26 +96,30 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.TextStyle
+import kotlin.math.roundToInt
 
 /** What the bottom area of the alarm detail shows (docs/design.md, Alarm detail). */
 enum class DetailMode { VIEW, PICK, PLACE }
 
+/** A row of the Wake-up tab that opens its editor right below it. */
 enum class DetailField { NAME, REPEAT, SNOOZE, SUNRISE }
 
-/** The open inline editor; [inRows] when opened from a simple-view row instead of a chip. */
-data class InlineEditor(val field: DetailField, val inRows: Boolean)
+/** The two tabs of an alarm: its actions on the timeline, and how it wakes you. */
+enum class DetailTab { TIMELINE, WAKE }
 
 /** An action being placed: [key] null for a new one, [offset] in signed minutes, [delay] after dismiss. */
 data class Placing(
@@ -142,9 +150,21 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     /** Sunrise minutes before the alarm (0 = off); kept on this phone like the sound. */
     val sunrise = MutableStateFlow(0)
     val baseSunrise = MutableStateFlow(0)
+    /** How far the sunrise goes towards white, in percent; kept on this phone like the sound. */
+    val bright = MutableStateFlow(100)
+    val baseBright = MutableStateFlow(100)
+    val tab = MutableStateFlow(DetailTab.TIMELINE)
     val mode = MutableStateFlow(DetailMode.VIEW)
     val placing = MutableStateFlow<Placing?>(null)
-    val inline = MutableStateFlow<InlineEditor?>(null)
+    val inline = MutableStateFlow<DetailField?>(null)
+    /** Anything differs from what was opened: Save shows, and leaving asks first. */
+    val changed: StateFlow<Boolean> = combine(
+        combine(draft, base) { a, b -> a != b },
+        combine(sound, baseSound) { a, b -> a != b },
+        combine(vibrate, baseVibrate) { a, b -> a != b },
+        combine(sunrise, baseSunrise) { a, b -> a != b },
+        combine(bright, baseBright) { a, b -> a != b },
+    ) { a, b, c, d, e -> a || b || c || d || e }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     /** Action key to flash, with a counter so the same card can flash again. */
     val flash = MutableStateFlow<Pair<String, Int>?>(null)
     val errors = MutableStateFlow<Map<String, DraftError>>(emptyMap())
@@ -155,6 +175,9 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     val scriptProblem = MutableStateFlow<Problem?>(null)
     val scripts: StateFlow<List<ScriptRow>> = app.repository.scripts.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val syncState: StateFlow<SyncStateRow> = app.repository.syncState.stateIn(viewModelScope, SharingStarted.Eagerly, SyncStateRow())
+    /** Id of the alarm the last save stored (or queued), so landscape can keep it selected. */
+    var savedId: String? = null
+        private set
     private var session = 0
     private var flashes = 0
 
@@ -171,6 +194,9 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         baseVibrate.value = true
         sunrise.value = 0
         baseSunrise.value = 0
+        bright.value = 100
+        baseBright.value = 100
+        tab.value = DetailTab.TIMELINE
         errors.value = emptyMap()
         saving.value = false
         conflict.value = false
@@ -190,6 +216,8 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                 baseVibrate.value = vibrate.value
                 sunrise.value = local?.sunrise ?: 0
                 baseSunrise.value = sunrise.value
+                bright.value = local?.sunriseBright ?: 100
+                baseBright.value = bright.value
             }
             loadingScripts.value = true
             val problem = app.repository.refreshScripts()
@@ -208,9 +236,16 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         if (errors.value.isNotEmpty()) errors.value = Drafts.validate(draft.value)
     }
 
-    fun toggleInline(field: DetailField, inRows: Boolean) {
-        val next = InlineEditor(field, inRows)
-        inline.value = if (inline.value == next) null else next
+    fun toggleInline(field: DetailField) {
+        inline.value = if (inline.value == field) null else field
+    }
+
+    /** Switching tabs drops an unplaced action, like Cancel. */
+    fun showTab(next: DetailTab) {
+        if (next == tab.value) return
+        cancelMode()
+        inline.value = null
+        tab.value = next
     }
 
     fun duplicate() {
@@ -298,11 +333,13 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             val time = Format.time(app, d.time)
             when (result) {
                 is SaveResult.Saved -> {
+                    savedId = result.alarm.id
                     saveSound(result.alarm.id)
                     val ok = app.getString(if (d.id == null) R.string.alarm_created else R.string.alarm_saved, time)
                     if (result.warnings.isEmpty()) onDone(ok) else warnings.value = result.warnings
                 }
                 is SaveResult.Queued -> {
+                    savedId = result.alarmId
                     saveSound(result.alarmId)
                     onDone(app.getString(R.string.saved_offline))
                 }
@@ -313,7 +350,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private suspend fun saveSound(alarmId: String) {
-        app.repository.setLocal(alarmId, sound.value, vibrate.value, sunrise.value)
+        app.repository.setLocal(alarmId, sound.value, vibrate.value, sunrise.value, bright.value)
     }
 
     fun delete(onDone: (String?) -> Unit, onError: (String) -> Unit) {
@@ -344,10 +381,9 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
 }
 
 /**
- * The alarm detail: header, chips, simple view or timeline, and the bottom area for adding and
+ * The alarm detail: header, the Timeline and Wake-up tabs, and the bottom area for adding and
  * placing actions (docs/design.md). [onClose] gets the message for the list, if any.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AlarmDetail(
     vm: EditorViewModel,
@@ -361,16 +397,10 @@ fun AlarmDetail(
     val context = LocalContext.current
     val t = tokens
     val draft by vm.draft.collectAsState()
-    val base by vm.base.collectAsState()
-    val sound by vm.sound.collectAsState()
-    val baseSound by vm.baseSound.collectAsState()
-    val vibrate by vm.vibrate.collectAsState()
-    val baseVibrate by vm.baseVibrate.collectAsState()
-    val sunrise by vm.sunrise.collectAsState()
-    val baseSunrise by vm.baseSunrise.collectAsState()
+    val changed by vm.changed.collectAsState()
+    val tab by vm.tab.collectAsState()
     val mode by vm.mode.collectAsState()
     val placing by vm.placing.collectAsState()
-    val inline by vm.inline.collectAsState()
     val flash by vm.flash.collectAsState()
     val errors by vm.errors.collectAsState()
     val saving by vm.saving.collectAsState()
@@ -385,30 +415,7 @@ fun AlarmDetail(
     var confirmDiscard by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
 
-    val soundPicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
-            } else {
-                @Suppress("DEPRECATION")
-                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
-            }
-            vm.sound.value = uri?.toString()
-        }
-    }
-    val pickSound = {
-        soundPicker.launch(
-            Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
-                .putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
-                .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
-                .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
-                .putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, sound?.let(Uri::parse)),
-        )
-    }
-
     val isNew = draft.id == null
-    val changed = draft != base || sound != baseSound || vibrate != baseVibrate || sunrise != baseSunrise
-    val toggleVibrate = { vm.vibrate.value = !vibrate }
     val back: () -> Unit = {
         when {
             mode != DetailMode.VIEW -> vm.cancelMode()
@@ -419,9 +426,6 @@ fun AlarmDetail(
     BackHandler(onBack = back)
 
     val days = Format.days(context, draft.repeatDays)
-    val soundLabel = soundName(context, sound) ?: stringResource(R.string.sound_default)
-    val snoozeLabel = draft.snoozeMinutes?.let { stringResource(R.string.snooze_chip, it) } ?: stringResource(R.string.snooze_chip_default)
-    val sunriseLabel = if (sunrise > 0) stringResource(R.string.sunrise_chip, sunrise) else stringResource(R.string.no_sunrise)
 
     Box(
         modifier
@@ -468,7 +472,7 @@ fun AlarmDetail(
                 }
             }
 
-            // Time, name · days, chips.
+            // Time, name · days, tabs.
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -489,24 +493,15 @@ fun AlarmDetail(
                         style = AppType.secondary,
                         color = t.muted,
                         textAlign = TextAlign.End,
-                        modifier = Modifier.weight(1f, fill = false).clip(RoundedCornerShape(8.dp)).clickable { vm.toggleInline(DetailField.NAME, false) },
+                        modifier = Modifier.weight(1f, fill = false),
                     )
                 }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Chip(days, { vm.toggleInline(DetailField.REPEAT, false) }, icon = AppIcons.repeat, selected = inline == InlineEditor(DetailField.REPEAT, false))
-                    Chip(snoozeLabel, { vm.toggleInline(DetailField.SNOOZE, false) }, icon = AppIcons.snooze, selected = inline == InlineEditor(DetailField.SNOOZE, false))
-                    Chip(soundLabel, pickSound, icon = AppIcons.sound)
-                    Chip(
-                        stringResource(if (vibrate) R.string.vibrate else R.string.no_vibration),
-                        toggleVibrate,
-                        icon = if (vibrate) AppIcons.vibrate else AppIcons.vibrateOff,
-                        selected = vibrate,
-                    )
-                    Chip(sunriseLabel, { vm.toggleInline(DetailField.SUNRISE, false) }, icon = AppIcons.sunrise, selected = inline == InlineEditor(DetailField.SUNRISE, false))
-                }
-                inline?.takeIf { !it.inRows }?.let { open ->
-                    key(open) { Rise { InlineEditorView(open.field, draft, state.defaultSnooze, vm) } }
-                }
+                Segmented(
+                    first = stringResource(R.string.tab_timeline),
+                    second = stringResource(R.string.tab_wake),
+                    secondSelected = tab == DetailTab.WAKE,
+                    onSelect = { wake -> vm.showTab(if (wake) DetailTab.WAKE else DetailTab.TIMELINE) },
+                )
             }
 
             if (conflict) Banner(stringResource(R.string.conflict), BannerKind.ERROR, stringResource(R.string.reload)) { vm.reload() }
@@ -515,10 +510,10 @@ fun AlarmDetail(
             }
 
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                if (mode == DetailMode.VIEW && draft.actions.isEmpty()) {
-                    Rise(Modifier.fillMaxSize()) {
-                        SimpleView(draft, inline, days, snoozeLabel, soundLabel, sunriseLabel, state.defaultSnooze, vm, pickSound, vibrate, toggleVibrate)
-                    }
+                if (tab == DetailTab.WAKE) {
+                    Rise(Modifier.fillMaxSize()) { WakeSettings(vm, landscape = false) }
+                } else if (mode == DetailMode.VIEW && draft.actions.isEmpty()) {
+                    Rise(Modifier.fillMaxSize()) { AddActions(vm::startPick) }
                 } else {
                     TimelineBody(
                         draft = draft,
@@ -535,7 +530,7 @@ fun AlarmDetail(
                 }
             }
 
-            Column(
+            if (tab == DetailTab.TIMELINE) Column(
                 Modifier.fillMaxWidth().drawBehind { drawLine(t.line, Offset.Zero, Offset(size.width, 0f), 1.dp.toPx()) },
             ) {
                 when (mode) {
@@ -597,7 +592,7 @@ fun AlarmDetail(
     }
 }
 
-/** Name, repeat or snooze, edited in place under the chips or a row. */
+/** Name, repeat, snooze or sunrise start, edited in place under its row. */
 @Composable
 private fun InlineEditorView(field: DetailField, draft: Draft, defaultSnooze: Int, vm: EditorViewModel) {
     val context = LocalContext.current
@@ -611,24 +606,7 @@ private fun InlineEditorView(field: DetailField, draft: Draft, defaultSnooze: In
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         )
         DetailField.REPEAT -> Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Weekday.entries.forEach { day ->
-                    val on = day in draft.repeatDays
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .sizeIn(maxWidth = 44.dp)
-                            .aspectRatio(1f)
-                            .clip(CircleShape)
-                            .background(if (on) t.accent else t.bg)
-                            .border(1.dp, if (on) t.accent else t.line, CircleShape)
-                            .clickable(role = Role.Checkbox) { vm.update { Drafts.toggleDay(it, day) } },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(Format.dayName(context, day, TextStyle.NARROW), style = AppType.secondary, fontWeight = FontWeight.SemiBold, color = if (on) t.onAccent else t.ink)
-                    }
-                }
-            }
+            DayToggles(draft.repeatDays) { day -> vm.update { Drafts.toggleDay(it, day) } }
             Hint(if (draft.repeatDays.isEmpty()) stringResource(R.string.repeat_hint) else Format.days(context, draft.repeatDays), t.muted)
         }
         DetailField.SNOOZE -> Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -640,80 +618,63 @@ private fun InlineEditorView(field: DetailField, draft: Draft, defaultSnooze: In
             Spacer(Modifier.weight(1f))
             if (draft.snoozeMinutes != null) Pill(stringResource(R.string.snooze_use_default, defaultSnooze), { vm.update { it.copy(snoozeMinutes = null) } })
         }
-        DetailField.SUNRISE -> Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        DetailField.SUNRISE -> Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             val sunrise by vm.sunrise.collectAsState()
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Sunrise.CHOICES.forEach { minutes ->
-                    val on = minutes == sunrise
-                    val shape = RoundedCornerShape(20.dp)
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .heightIn(min = 40.dp)
-                            .clip(shape)
-                            .background(if (on) t.accent else t.bg)
-                            .border(1.dp, if (on) t.accent else t.line, shape)
-                            .clickable(role = Role.RadioButton) { vm.sunrise.value = minutes },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            if (minutes == 0) stringResource(R.string.off) else stringResource(R.string.dur_min, minutes),
-                            style = AppType.secondary,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (on) t.onAccent else t.ink,
-                        )
-                    }
+            Sunrise.CHOICES.filter { it > 0 }.forEach { minutes ->
+                val on = minutes == sunrise
+                val shape = RoundedCornerShape(20.dp)
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .heightIn(min = 40.dp)
+                        .clip(shape)
+                        .background(if (on) t.accent else t.bg)
+                        .border(1.dp, if (on) t.accent else t.line, shape)
+                        .clickable(role = Role.RadioButton) { vm.sunrise.value = minutes },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(stringResource(R.string.dur_min, minutes), style = AppType.secondary, fontWeight = FontWeight.SemiBold, color = if (on) t.onAccent else t.ink)
                 }
             }
-            Hint(stringResource(R.string.sunrise_hint), t.muted)
         }
     }
 }
 
-/** Rows for an alarm without actions, and the dashed "Add actions" card. */
+/** Seven day toggles (circles up to 44), for Repeat. */
 @Composable
-private fun SimpleView(
-    draft: Draft,
-    inline: InlineEditor?,
-    days: String,
-    snoozeLabel: String,
-    soundLabel: String,
-    sunriseLabel: String,
-    defaultSnooze: Int,
-    vm: EditorViewModel,
-    pickSound: () -> Unit,
-    vibrate: Boolean,
-    toggleVibrate: () -> Unit,
-) {
+internal fun DayToggles(days: List<Weekday>, onToggle: (Weekday) -> Unit) {
+    val context = LocalContext.current
     val t = tokens
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 32.dp)) {
-        val rows = listOf(
-            Triple(DetailField.NAME, stringResource(R.string.label), draft.label.ifBlank { stringResource(R.string.label_placeholder) }),
-            Triple(DetailField.REPEAT, stringResource(R.string.repeat), days),
-            Triple(DetailField.SNOOZE, stringResource(R.string.snooze), snoozeLabel),
-        )
-        rows.forEach { (field, title, value) ->
-            SimpleRow(title, value) { vm.toggleInline(field, true) }
-            if (inline == InlineEditor(field, true)) {
-                key(inline) { Rise(Modifier.padding(vertical = 8.dp)) { InlineEditorView(field, draft, defaultSnooze, vm) } }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Weekday.entries.forEach { day ->
+            val on = day in days
+            Box(
+                Modifier
+                    .weight(1f)
+                    .sizeIn(maxWidth = 44.dp)
+                    .aspectRatio(1f)
+                    .clip(CircleShape)
+                    .background(if (on) t.accent else t.bg)
+                    .border(1.dp, if (on) t.accent else t.line, CircleShape)
+                    .clickable(role = Role.Checkbox) { onToggle(day) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(Format.dayName(context, day, TextStyle.NARROW), style = AppType.secondary, fontWeight = FontWeight.SemiBold, color = if (on) t.onAccent else t.ink)
             }
         }
-        SimpleRow(stringResource(R.string.sound), soundLabel, onClick = pickSound)
-        SimpleRow(
-            stringResource(R.string.vibrate),
-            "",
-            trailing = { AppSwitch(vibrate, { toggleVibrate() }, stringResource(R.string.vibrate)) },
-            onClick = toggleVibrate,
-        )
-        SimpleRow(stringResource(R.string.sunrise), sunriseLabel) { vm.toggleInline(DetailField.SUNRISE, true) }
-        if (inline == InlineEditor(DetailField.SUNRISE, true)) {
-            key(inline) { Rise(Modifier.padding(vertical = 8.dp)) { InlineEditorView(DetailField.SUNRISE, draft, defaultSnooze, vm) } }
-        }
+    }
+}
 
+/** The empty timeline of a simple alarm: what it is, and the dashed "Add actions" card. */
+@Composable
+private fun AddActions(onClick: () -> Unit) {
+    val t = tokens
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp)) {
+        Text(stringResource(R.string.simple_alarm_note), style = AppType.label, color = t.muted)
         val shape = RoundedCornerShape(18.dp)
         Column(
             Modifier
-                .padding(top = 28.dp)
+                .padding(top = 20.dp)
                 .fillMaxWidth()
                 .clip(shape)
                 .drawBehind {
@@ -723,7 +684,7 @@ private fun SimpleView(
                         style = Stroke(width = 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))),
                     )
                 }
-                .clickable(role = Role.Button, onClick = vm::startPick)
+                .clickable(role = Role.Button, onClick = onClick)
                 .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -736,27 +697,180 @@ private fun SimpleView(
     }
 }
 
+/**
+ * How the alarm wakes you (docs/design.md, Alarm settings): name and repeat (portrait only; landscape
+ * edits them on the time page), sound, sunrise and snooze. [landscape] puts the groups in two columns.
+ */
 @Composable
-private fun SimpleRow(title: String, value: String, trailing: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
+fun WakeSettings(vm: EditorViewModel, landscape: Boolean, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val t = tokens
+    val draft by vm.draft.collectAsState()
+    val sound by vm.sound.collectAsState()
+    val vibrate by vm.vibrate.collectAsState()
+    val sunrise by vm.sunrise.collectAsState()
+    val bright by vm.bright.collectAsState()
+    val inline by vm.inline.collectAsState()
+    val state by vm.syncState.collectAsState()
+
+    val soundPicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            }
+            vm.sound.value = uri?.toString()
+        }
+    }
+    val pickSound = {
+        soundPicker.launch(
+            Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                .putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, sound?.let(Uri::parse)),
+        )
+    }
+
+    val editor: @Composable (DetailField) -> Unit = { field ->
+        if (inline == field) key(field) { Rise(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) { InlineEditorView(field, draft, state.defaultSnooze, vm) } }
+    }
+    val alarmGroup: @Composable () -> Unit = {
+        WakeGroup(stringResource(R.string.group_alarm)) {
+            WakeRow(stringResource(R.string.label), draft.label.ifBlank { stringResource(R.string.label_placeholder) }, { vm.toggleInline(DetailField.NAME) })
+            editor(DetailField.NAME)
+            HorizontalDivider(color = t.line)
+            WakeRow(stringResource(R.string.repeat), Format.days(context, draft.repeatDays), { vm.toggleInline(DetailField.REPEAT) })
+            editor(DetailField.REPEAT)
+        }
+    }
+    val soundGroup: @Composable () -> Unit = {
+        WakeGroup(stringResource(R.string.sound)) {
+            WakeRow(stringResource(R.string.sound), soundName(context, sound) ?: stringResource(R.string.sound_default), pickSound)
+            HorizontalDivider(color = t.line)
+            WakeRow(stringResource(R.string.vibrate), "", { vm.vibrate.value = !vibrate }) {
+                AppSwitch(vibrate, { vm.vibrate.value = it }, stringResource(R.string.vibrate))
+            }
+        }
+    }
+    val sunriseGroup: @Composable () -> Unit = {
+        WakeGroup(stringResource(R.string.sunrise), note = stringResource(R.string.sunrise_hint)) {
+            val set = { on: Boolean -> vm.sunrise.value = if (on) Sunrise.DEFAULT_MINUTES else 0 }
+            WakeRow(stringResource(R.string.sunrise_screen), "", { set(sunrise == 0) }) {
+                AppSwitch(sunrise > 0, set, stringResource(R.string.sunrise_screen))
+            }
+            if (sunrise > 0) {
+                HorizontalDivider(color = t.line)
+                WakeRow(stringResource(R.string.sunrise_starts), stringResource(R.string.sunrise_starts_value, sunrise), { vm.toggleInline(DetailField.SUNRISE) })
+                editor(DetailField.SUNRISE)
+                HorizontalDivider(color = t.line)
+                BrightRow(bright) { vm.bright.value = it }
+            }
+        }
+    }
+    val snoozeGroup: @Composable () -> Unit = {
+        WakeGroup(stringResource(R.string.snooze), note = stringResource(R.string.snooze_swipe_note)) {
+            val value = draft.snoozeMinutes?.let { stringResource(R.string.dur_min, it) } ?: stringResource(R.string.snooze_default_value, state.defaultSnooze)
+            WakeRow(stringResource(R.string.snooze_for), value, { vm.toggleInline(DetailField.SNOOZE) })
+            editor(DetailField.SNOOZE)
+        }
+    }
+
+    val scroll = modifier.verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 32.dp)
+    if (landscape) {
+        Row(scroll, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) { soundGroup(); snoozeGroup() }
+            Column(Modifier.weight(1f)) { sunriseGroup() }
+        }
+    } else {
+        Column(scroll, verticalArrangement = Arrangement.spacedBy(18.dp)) { alarmGroup(); soundGroup(); sunriseGroup(); snoozeGroup() }
+    }
+}
+
+/** A titled card of rows, with an optional note below it. */
+@Composable
+private fun WakeGroup(title: String, note: String? = null, content: @Composable ColumnScope.() -> Unit) {
+    val t = tokens
+    val shape = RoundedCornerShape(16.dp)
+    Column {
+        Text(
+            title.uppercase(),
+            style = AppType.small.copy(letterSpacing = 0.08.em),
+            fontWeight = FontWeight.SemiBold,
+            color = t.muted,
+            modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
+        )
+        Column(Modifier.fillMaxWidth().clip(shape).background(t.surface).border(1.dp, t.line, shape), content = content)
+        if (note != null) Text(note, style = AppType.small, color = t.muted, modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 6.dp))
+    }
+}
+
+/** A tappable row: label, current value and a chevron, or a [trailing] control such as a switch. */
+@Composable
+private fun WakeRow(label: String, value: String, onClick: () -> Unit, trailing: (@Composable () -> Unit)? = null) {
     val t = tokens
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .clickable(onClick = onClick)
-            .drawBehind { drawLine(t.line, Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx()) },
+            .heightIn(min = 52.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(start = 14.dp, end = if (trailing == null) 12.dp else 6.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(title, style = AppType.body, color = t.ink)
-        Spacer(Modifier.width(16.dp).weight(1f))
-        Text(value, style = AppType.body, color = t.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        trailing?.invoke()
+        Text(label, style = AppType.body, color = t.ink, modifier = Modifier.weight(1f))
+        if (value.isNotEmpty()) Text(value, style = AppType.body, color = t.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 190.dp))
+        if (trailing != null) trailing() else Icon(AppIcons.chevron, null, tint = t.muted, modifier = Modifier.size(16.dp))
+    }
+}
+
+/** Brightest point of the sunrise: a slider in 5 % steps, with the colours it reaches. */
+@Composable
+private fun BrightRow(bright: Int, onChange: (Int) -> Unit) {
+    val t = tokens
+    val strip = RoundedCornerShape(8.dp)
+    Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(stringResource(R.string.brightest_point), style = AppType.body, color = t.ink, modifier = Modifier.weight(1f))
+            Text("$bright%", fontSize = 20.sp, fontWeight = FontWeight.Light, color = t.ink)
+        }
+        Slider(
+            value = bright.toFloat(),
+            onValueChange = { onChange(it.roundToInt()) },
+            valueRange = Sunrise.BRIGHT_MIN.toFloat()..Sunrise.BRIGHT_MAX.toFloat(),
+            steps = (Sunrise.BRIGHT_MAX - Sunrise.BRIGHT_MIN) / Sunrise.BRIGHT_STEP - 1,
+            colors = SliderDefaults.colors(
+                thumbColor = t.ink,
+                activeTrackColor = t.accent,
+                inactiveTrackColor = t.line,
+                activeTickColor = Color.Transparent,
+                inactiveTickColor = Color.Transparent,
+            ),
+        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.clip(strip).border(1.dp, t.line, strip)) {
+                repeat(6) { i -> Box(Modifier.size(22.dp, 30.dp).background(Color(Sunrise.background(i / 5f * bright / 100f)))) }
+            }
+            Text(
+                stringResource(
+                    when {
+                        bright >= 90 -> R.string.bright_all
+                        bright <= 30 -> R.string.bright_low
+                        else -> R.string.bright_mid
+                    },
+                ),
+                style = AppType.small,
+                color = t.muted,
+            )
+        }
     }
 }
 
 /** Scripts are loading or missing: the text to show instead of the add or pick controls. */
 @Composable
-private fun scriptsMessage(loading: Boolean, problem: Problem?, actionLabel: String?): String {
+internal fun scriptsMessage(loading: Boolean, problem: Problem?, actionLabel: String?): String {
     val context = LocalContext.current
     return when {
         loading -> stringResource(R.string.loading_scripts)
@@ -886,9 +1000,9 @@ private fun PlaceBar(p: Placing, draft: Draft, scripts: List<ScriptRow>, timeZon
     }
 }
 
-/** Two-way segmented control: "Around the alarm" | "After dismiss". */
+/** Two-way segmented control: "Around the alarm" | "After dismiss", and the Timeline | Wake-up tabs. */
 @Composable
-private fun Segmented(first: String, second: String, secondSelected: Boolean, onSelect: (Boolean) -> Unit) {
+internal fun Segmented(first: String, second: String, secondSelected: Boolean, onSelect: (Boolean) -> Unit) {
     val t = tokens
     val shape = RoundedCornerShape(14.dp)
     Row(Modifier.fillMaxWidth().clip(shape).background(t.soft).padding(3.dp)) {
@@ -911,7 +1025,7 @@ private fun Segmented(first: String, second: String, secondSelected: Boolean, on
 
 internal fun scriptName(scripts: List<ScriptRow>, entityId: String) = scripts.firstOrNull { it.entityId == entityId }?.name ?: entityId
 
-private fun warningText(context: android.content.Context, w: AlarmWarning, draft: Draft, scripts: List<ScriptRow>): String {
+internal fun warningText(context: android.content.Context, w: AlarmWarning, draft: Draft, scripts: List<ScriptRow>): String {
     if (w.code != "before_missed") return w.message
     val action = draft.actions.firstOrNull { it.id == w.alarmActionId }
     return if (action != null) {

@@ -23,6 +23,8 @@ import java.time.ZonedDateTime
 object Sunrise {
     /** Choices in the alarm detail: minutes before the alarm, 0 = off. */
     val CHOICES = listOf(0, 10, 20, 30)
+    /** Where the sunrise switch starts when it goes on. */
+    const val DEFAULT_MINUTES = 20
     /** The sunrise on the ringing screen when the night display did not show one. */
     const val SHORT_MS = 30_000L
     /** Window brightness of the night display, where every sunrise starts. */
@@ -42,9 +44,17 @@ object Sunrise {
         return (now - start).toFloat() / (ring.ringAt - start)
     }
 
-    /** The sunrise running at [now] (the furthest along when several overlap) and its progress. */
+    /** Brightest point choices in the alarm detail, in percent of the way to white. */
+    const val BRIGHT_MIN = 10
+    const val BRIGHT_MAX = 100
+    const val BRIGHT_STEP = 5
+
+    /** The share of the way to white where [ring]'s sunrise stops (0.1–1). */
+    fun cap(ring: PlannedRing): Float = ring.sunriseBright.coerceIn(BRIGHT_MIN, BRIGHT_MAX) / 100f
+
+    /** The sunrise running at [now] (the brightest when several overlap) and how far towards white it is, up to its [cap]. */
     fun running(rings: List<PlannedRing>, now: Long): Pair<PlannedRing, Float>? =
-        rings.mapNotNull { r -> progress(r, now)?.let { r to it } }.maxByOrNull { it.second }
+        rings.mapNotNull { r -> progress(r, now)?.let { r to it * cap(r) } }.maxByOrNull { it.second }
 
     fun background(p: Float): Long = interpolate(BACKGROUND, p)
 

@@ -63,6 +63,29 @@ object Timeline {
         return tops
     }
 
+    /** Horizontal timeline (landscape): position of [offset] as a fraction 0..1 of the axis, clamped to the range. */
+    fun fraction(offset: Int, range: Int): Float = (offset.coerceIn(-range, range) + range).toFloat() / (2 * range)
+
+    /** Offset at fraction [f] of the horizontal axis, snapped to [snap] minutes and clamped to the range. */
+    fun offsetAtFraction(f: Float, range: Int, snap: Int = DRAG_SNAP): Int {
+        val raw = f * 2 * range - range
+        return (Math.round(raw / snap) * snap).coerceIn(-range, range)
+    }
+
+    /**
+     * Lanes for marks at the sorted positions [xs]: each goes to the first lane whose last mark is at
+     * least [gap] to its left, else to the last lane, so neighbours do not overlap.
+     */
+    fun lanes(xs: List<Float>, gap: Float, count: Int = 3): List<Int> {
+        val last = FloatArray(count) { Float.NEGATIVE_INFINITY }
+        return xs.map { x ->
+            var lane = 0
+            while (lane < count - 1 && last[lane] > x - gap) lane++
+            last[lane] = x
+            lane
+        }
+    }
+
     /** Position on the mini timeline in 0..1 (clamped to 2..98 %, like the mockup). */
     fun miniFraction(offset: Int, range: Int): Float =
         ((offset + range).toFloat() / (2 * range)).coerceIn(0.02f, 0.98f)

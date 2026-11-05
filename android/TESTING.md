@@ -51,6 +51,9 @@ Record for each run: device, Android version, app version, pass/fail and notes.
 - [ ] Alarm detail (docs/design.md): opening an alarm with actions morphs its mini timeline into the rail;
   add an action (pick, drag, ▲▼, Place here), move one to "After dismiss", remove one, then Save.
   Back with unsaved changes asks "Discard changes?".
+- [ ] Alarm detail tabs: Timeline | Wake-up. Name and Repeat, Sound, Vibrate, Sunrise and Snooze are all edited on Wake-up and kept (or dropped) with Save / Discard. Switching to Wake-up while placing an action drops the unplaced action.
+- [ ] Settings: four category cards with their current values; search ("sound", "checklist") finds a row and opens its category with the row highlighted. Every row still works (sound, volume ramp, night times, widget entities, log in again / out, health check, check for updates). Back closes the search, then the category.
+- [ ] Landscape (phone on its side, not charging in the night window): Alarms shows the rail, the alarm list and the detail. Add an alarm with +, tap the time for the time page (drums, repeat, name, Done), add / move / remove an action on the horizontal timeline, switch to Wake-up, Save. Switching alarms with unsaved changes asks "Discard changes?". Settings in landscape: categories on the left, rows on the right. Rotating back and forth keeps the open alarm.
 - [ ] Offline edit: save in airplane mode. The alarm shows "Not synced yet" and is sent after reconnecting.
 - [ ] Conflict:
   - Edit offline on the phone and edit the same alarm in the panel, then reconnect.
@@ -102,7 +105,8 @@ Record for each run: device, Android version, app version, pass/fail and notes.
 - [ ] A ringing alarm takes over the night display. After Stop, the night display is closed; after snooze, it stays.
 
 ## 8a. Sunrise and wake-up screen
-- [ ] Alarm detail: the Sunrise chip and row offer Off / 10 / 20 / 30 min; Save keeps it; the list shows " · Sunrise 20 min".
+- [ ] Alarm detail → Wake-up tab: the Sunrise screen switch (on = 20 min) and Starts offer 10 / 20 / 30 min; Save keeps it; the list shows " · Sunrise 20 min". Update the app over an older install: existing alarms keep their sunrise, brightest point 100 %.
+- [ ] Brightest point 40 %: with the night display open the sunrise stops at a soft amber and never gets bright; the wake-up screen starts at that same level. At 100 % it goes all the way to white as before.
 - [ ] An alarm with a 10 min sunrise and the night display open: from 10 min before, the screen slowly turns from black via orange to warm white and gets brighter. At the alarm time the wake-up screen opens bright.
 - [ ] The same alarm without the night display: the wake-up screen brightens over about 30 seconds.
 - [ ] An alarm without a sunrise: the wake-up screen is black with amber text, at normal brightness.

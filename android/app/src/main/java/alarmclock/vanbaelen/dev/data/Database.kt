@@ -71,6 +71,8 @@ data class AlarmSoundRow(
     @ColumnInfo(defaultValue = "1") val vibrate: Boolean = true,
     /** Minutes the night display brightens like a sunrise before the alarm; 0 = off. */
     @ColumnInfo(defaultValue = "0") val sunrise: Int = 0,
+    /** How far the sunrise goes towards white, in percent (10–100). */
+    @ColumnInfo(defaultValue = "100") val sunriseBright: Int = 100,
 )
 
 @Entity(tableName = "missed_alarms")
@@ -199,7 +201,7 @@ interface AppDao {
         AlarmRow::class, SyncStateRow::class, PendingReportRow::class, PendingEditRow::class,
         AlarmSoundRow::class, MissedAlarmRow::class, ScriptRow::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -220,7 +222,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** 3 → 4: per-alarm brightest point of the sunrise (all the way by default). */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE alarm_sounds ADD COLUMN sunriseBright INTEGER NOT NULL DEFAULT 100")
+            }
+        }
+
         fun create(context: Context): AppDatabase =
-            Room.databaseBuilder(context, AppDatabase::class.java, "alarm_actions.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+            Room.databaseBuilder(context, AppDatabase::class.java, "alarm_actions.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
     }
 }
