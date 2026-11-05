@@ -206,9 +206,10 @@ private fun Ringing(
     val context = LocalContext.current
     val sunrise = ring.sunriseMinutes > 0
     val shown = NightDisplay.sunriseShown == (ring.alarmId to ring.ringAt)
-    val p = remember(ring) { Animatable(if (sunrise && !shown) 0f else 1f) }
+    val top = Sunrise.cap(ring)
+    val p = remember(ring) { Animatable(if (sunrise && !shown) 0f else top) }
     LaunchedEffect(ring) {
-        if (p.value < 1f) p.animateTo(1f, tween(Sunrise.SHORT_MS.toInt(), easing = LinearEasing))
+        if (p.value < top) p.animateTo(top, tween(Sunrise.SHORT_MS.toInt(), easing = LinearEasing))
     }
     LaunchedEffect(ring) {
         if (!sunrise) {
@@ -232,7 +233,7 @@ private fun Ringing(
         time = Format.clock(context, t),
         headline = ring.label.ifBlank { Format.greeting(context, t.hour) },
         nudge = stringResource(R.string.swipe_snooze, ring.snoozeMinutes),
-        status = if (sunrise && p.value < 1f) stringResource(R.string.wake_status_sunrise) else null,
+        status = if (sunrise && p.value < top) stringResource(R.string.wake_status_sunrise) else null,
         onSnooze = onSnooze,
         onStop = onStop,
     )

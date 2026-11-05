@@ -140,6 +140,7 @@ class Repository(private val app: App) {
                 soundUri = local[alarm.id]?.soundUri ?: settings.defaultSoundUri,
                 vibrate = local[alarm.id]?.vibrate ?: true,
                 sunriseMinutes = local[alarm.id]?.sunrise ?: 0,
+                sunriseBright = local[alarm.id]?.sunriseBright ?: 100,
                 volumeRamp = settings.volumeRamp,
                 haTimeZone = state.timeZone,
                 dismissedAt = alarm.currentOccurrence?.takeIf { it.status == "dismissed" }
@@ -318,8 +319,8 @@ class Repository(private val app: App) {
     }
 
     /** The phone-local sound, vibration and sunrise of an alarm; the row is dropped when all are default. */
-    suspend fun setLocal(alarmId: String, uri: String?, vibrate: Boolean, sunrise: Int) {
-        if (uri == null && vibrate && sunrise == 0) dao.deleteSound(alarmId) else dao.saveSound(AlarmSoundRow(alarmId, uri, vibrate, sunrise))
+    suspend fun setLocal(alarmId: String, uri: String?, vibrate: Boolean, sunrise: Int, bright: Int) {
+        if (uri == null && vibrate && sunrise == 0 && bright == 100) dao.deleteSound(alarmId) else dao.saveSound(AlarmSoundRow(alarmId, uri, vibrate, sunrise, bright))
         rebuildEngine()
     }
 

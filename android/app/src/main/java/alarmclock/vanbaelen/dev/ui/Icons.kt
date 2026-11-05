@@ -13,6 +13,7 @@ object AppIcons {
     val plus = stroke("M12 5v14M5 12h14")
     val minus = stroke("M5 12h14")
     val back = stroke("M15 6l-6 6 6 6")
+    val chevron = stroke("M9 6l6 6-6 6", 2f)
     val up = stroke("M6 15l6-6 6 6")
     val down = stroke("M6 9l6 6 6-6")
     val upDown = stroke("M8 9l4-4 4 4M8 15l4 4 4-4", 2f)
@@ -31,6 +32,7 @@ object AppIcons {
     val bell = stroke("M6 16v-5a6 6 0 1 1 12 0v5l1.5 2h-15L6 16zM10 21a2 2 0 0 0 4 0")
     val bolt = stroke("M13 3L5 14h6l-1 7 8-11h-6l1-7z")
     val moon = stroke("M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z")
+    val sliders = stroke("M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M14 4v4M8 10v4M16 16v4")
     val eye = stroke("M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z", 1.6f)
     val eyeClosed = stroke("M2 12s3.5 5 10 5 10-5 10-5M5 15l-1.5 2M19 15l1.5 2M12 17v2.5M8.5 16.5 7.5 19M15.5 16.5l1 2.5", 1.6f)
     val home = stroke("M4 11l8-7 8 7v9H4zM10 20v-5h4v5", 1.6f)
@@ -49,6 +51,11 @@ object AppIcons {
     val check = stroke("M5 12l5 5 9-10", 3f)
     val checklist = stroke("M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2", 1.6f)
     val wind = stroke("M3 9h11a3 3 0 1 0-3-3M3 15h15a3 3 0 1 1-3 3M3 12h8", 1.5f)
+
+    // App settings (docs/design.md, Settings).
+    val info = stroke("M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5M12 8h.01")
+    val search = stroke("M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4")
+    val close = stroke("M6 6l12 12M18 6L6 18")
 
     /** Icon of a Home Assistant weather condition. */
     fun weather(condition: String?): ImageVector = when (condition) {

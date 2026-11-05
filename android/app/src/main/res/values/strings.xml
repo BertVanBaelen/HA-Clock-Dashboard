@@ -226,8 +226,6 @@
     <string name="summary_after_dismiss">%d after dismiss</string>
     <string name="nav_alarms">Alarms</string>
     <string name="nav_night">Night</string>
-    <string name="snooze_chip">Snooze %d min</string>
-    <string name="snooze_chip_default">Snooze default</string>
     <string name="snooze_use_default">Use default (%d min)</string>
     <string name="add_actions">Add actions</string>
     <string name="add_actions_hint">Turn on lights, start coffee or play the news before, with or after this alarm. It stays a simple alarm until you do.</string>
@@ -260,7 +258,20 @@
     <!-- Sunrise (per alarm, on this phone) -->
     <string name="sunrise">Sunrise</string>
     <string name="sunrise_chip">Sunrise %d min</string>
-    <string name="no_sunrise">No sunrise</string>
+    <string name="sunrise_screen">Sunrise screen</string>
+    <string name="sunrise_starts">Starts</string>
+    <string name="sunrise_starts_value">%d min before</string>
+    <string name="brightest_point">Brightest point</string>
+    <string name="bright_all">Goes all the way to white</string>
+    <string name="bright_mid">Gets light, but not fully white</string>
+    <string name="bright_low">Stays soft and warm, never bright</string>
+    <string name="tab_timeline">Timeline</string>
+    <string name="tab_wake">Wake-up</string>
+    <string name="group_alarm">Alarm</string>
+    <string name="simple_alarm_note">A simple alarm: just a time and a sound. Sound, vibration and the sunrise screen are under Wake-up.</string>
+    <string name="snooze_for">Snooze for</string>
+    <string name="snooze_default_value">%d min (default)</string>
+    <string name="snooze_swipe_note">On the wake-up screen, swipe up anywhere to snooze.</string>
     <string name="sunrise_hint">With the night display open, the screen slowly brightens like a sunrise before the alarm. Without it, a short sunrise plays when the alarm rings.</string>
 
     <!-- Night display (docs/design.md, Night display) -->
@@ -470,4 +481,41 @@
         <item quantity="one">%d to do</item>
         <item quantity="other">%d to do</item>
     </plurals>
+    <!-- App settings: categories and search -->
+    <string name="settings_about_help">About &amp; help</string>
+    <string name="settings_search_hint">Search, for example “sound”</string>
+    <string name="settings_search_clear">Clear search</string>
+    <string name="settings_nothing_found">Nothing found. Try another word.</string>
+    <plurals name="settings_found">
+        <item quantity="one">%d setting found</item>
+        <item quantity="other">%d settings found</item>
+    </plurals>
+    <string name="settings_intro_alarms">Defaults for the alarms on this phone. Each alarm can still pick its own sound.</string>
+    <string name="settings_intro_night">The clock screen while your phone charges at night.</string>
+    <string name="settings_intro_ha">The server and login this phone uses for alarms and widgets.</string>
+    <string name="settings_intro_about">Check that alarms ring reliably, and keep the app up to date.</string>
+    <string name="settings_group_starting">Starting</string>
+    <string name="settings_group_widgets">Widgets</string>
+    <string name="settings_group_connection">Connection</string>
+    <string name="settings_summary_ramp">%s · gradually louder</string>
+    <string name="settings_summary_night_auto">Starts by itself %1$s–%2$s</string>
+    <string name="settings_summary_night_manual">Only when you open it</string>
+    <string name="settings_summary_not_connected">Not connected</string>
+    <string name="settings_summary_version">Version %s</string>
+    <!-- Landscape alarms and the time page -->
+    <string name="land_time_hint">tap the time to change it</string>
+    <string name="land_simple">Simple alarm. Add an action to build a timeline around it.</string>
+    <string name="land_move">Move</string>
+    <string name="land_drag_hint">Drag along the line, or tap a spot</string>
+    <string name="land_time">Time</string>
+    <string name="land_hour_earlier">1 hour earlier</string>
+    <string name="land_hour_later">1 hour later</string>
+    <string name="land_drum_hint">Slide a number up or down, like a wheel. The arrows move the same way.</string>
+    <plurals name="land_time_actions">
+        <item quantity="one">Your %d action moves with the alarm</item>
+        <item quantity="other">Your %d actions move with the alarm</item>
+    </plurals>
+    <string name="land_time_one">At %1$s (%2$s)</string>
+    <string name="land_time_first_last">First at %1$s (%2$s), last at %3$s (%4$s)</string>
+    <string name="land_time_done">Done · %s</string>
 </resources>

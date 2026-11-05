@@ -214,8 +214,6 @@
     <string name="summary_after_dismiss">%d na uitzetten</string>
     <string name="nav_alarms">Wekkers</string>
     <string name="nav_night">Nacht</string>
-    <string name="snooze_chip">Sluimeren %d min</string>
-    <string name="snooze_chip_default">Sluimeren standaard</string>
     <string name="snooze_use_default">Standaard gebruiken (%d min)</string>
     <string name="add_actions">Acties toevoegen</string>
     <string name="add_actions_hint">Zet licht aan, start koffie of speel het nieuws voor, bij of na deze wekker. Tot dan blijft het een eenvoudige wekker.</string>
@@ -248,7 +246,20 @@
     <!-- Zonsopgang (per wekker, op deze telefoon) -->
     <string name="sunrise">Zonsopgang</string>
     <string name="sunrise_chip">Zonsopgang %d min</string>
-    <string name="no_sunrise">Geen zonsopgang</string>
+    <string name="sunrise_screen">Zonsopgangscherm</string>
+    <string name="sunrise_starts">Begint</string>
+    <string name="sunrise_starts_value">%d min ervoor</string>
+    <string name="brightest_point">Helderste punt</string>
+    <string name="bright_all">Gaat helemaal naar wit</string>
+    <string name="bright_mid">Wordt licht, maar niet helemaal wit</string>
+    <string name="bright_low">Blijft zacht en warm, nooit fel</string>
+    <string name="tab_timeline">Tijdlijn</string>
+    <string name="tab_wake">Wakker worden</string>
+    <string name="group_alarm">Wekker</string>
+    <string name="simple_alarm_note">Een eenvoudige wekker: alleen een tijd en een geluid. Geluid, trillen en het zonsopgangscherm vind je onder Wakker worden.</string>
+    <string name="snooze_for">Sluimeren</string>
+    <string name="snooze_default_value">%d min (standaard)</string>
+    <string name="snooze_swipe_note">Veeg op het wekscherm ergens omhoog om te sluimeren.</string>
     <string name="sunrise_hint">Met de nachtklok open wordt het scherm voor de wekker langzaam lichter, als een zonsopgang. Zonder nachtklok speelt een korte zonsopgang wanneer de wekker afgaat.</string>
 
     <!-- Nachtklok (docs/design.md, Night display) -->
@@ -458,4 +469,41 @@
         <item quantity="one">%d te doen</item>
         <item quantity="other">%d te doen</item>
     </plurals>
+    <!-- App settings: categories and search -->
+    <string name="settings_about_help">Over &amp; hulp</string>
+    <string name="settings_search_hint">Zoek, bijvoorbeeld “geluid”</string>
+    <string name="settings_search_clear">Zoekopdracht wissen</string>
+    <string name="settings_nothing_found">Niets gevonden. Probeer een ander woord.</string>
+    <plurals name="settings_found">
+        <item quantity="one">%d instelling gevonden</item>
+        <item quantity="other">%d instellingen gevonden</item>
+    </plurals>
+    <string name="settings_intro_alarms">Standaarden voor de wekkers op deze telefoon. Elke wekker kan nog een eigen geluid kiezen.</string>
+    <string name="settings_intro_night">Het klokscherm terwijl je telefoon ’s nachts oplaadt.</string>
+    <string name="settings_intro_ha">De server en login die deze telefoon gebruikt voor wekkers en widgets.</string>
+    <string name="settings_intro_about">Controleer of wekkers betrouwbaar afgaan, en houd de app up-to-date.</string>
+    <string name="settings_group_starting">Starten</string>
+    <string name="settings_group_widgets">Widgets</string>
+    <string name="settings_group_connection">Verbinding</string>
+    <string name="settings_summary_ramp">%s · geleidelijk luider</string>
+    <string name="settings_summary_night_auto">Start vanzelf %1$s–%2$s</string>
+    <string name="settings_summary_night_manual">Alleen als je het opent</string>
+    <string name="settings_summary_not_connected">Niet verbonden</string>
+    <string name="settings_summary_version">Versie %s</string>
+    <!-- Wekkers liggend en de tijdpagina -->
+    <string name="land_time_hint">tik op de tijd om die te wijzigen</string>
+    <string name="land_simple">Eenvoudige wekker. Voeg een actie toe om er een tijdlijn rond te bouwen.</string>
+    <string name="land_move">Verplaatsen</string>
+    <string name="land_drag_hint">Sleep langs de lijn, of tik op een plek</string>
+    <string name="land_time">Tijd</string>
+    <string name="land_hour_earlier">1 uur vroeger</string>
+    <string name="land_hour_later">1 uur later</string>
+    <string name="land_drum_hint">Schuif een getal omhoog of omlaag, zoals een wieltje. De pijlen doen hetzelfde.</string>
+    <plurals name="land_time_actions">
+        <item quantity="one">Je %d actie schuift mee met de wekker</item>
+        <item quantity="other">Je %d acties schuiven mee met de wekker</item>
+    </plurals>
+    <string name="land_time_one">Om %1$s (%2$s)</string>
+    <string name="land_time_first_last">De eerste om %1$s (%2$s), de laatste om %3$s (%4$s)</string>
+    <string name="land_time_done">Klaar · %s</string>
 </resources>

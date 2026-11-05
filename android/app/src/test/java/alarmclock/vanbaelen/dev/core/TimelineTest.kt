@@ -40,6 +40,27 @@ class TimelineTest {
     }
 
     @Test
+    fun horizontalFractionSnapsAndClamps() {
+        assertEquals(0.5f, Timeline.fraction(0, 60), 0f)
+        assertEquals(0f, Timeline.fraction(-60, 60), 0f)
+        assertEquals(1f, Timeline.fraction(90, 60), 0f)
+        assertEquals(0, Timeline.offsetAtFraction(0.5f, 60))
+        assertEquals(-15, Timeline.offsetAtFraction(0.375f, 60))
+        assertEquals(-10, Timeline.offsetAtFraction(0.4f, 60))
+        assertEquals(-60, Timeline.offsetAtFraction(-0.2f, 60))
+        assertEquals(60, Timeline.offsetAtFraction(1.3f, 60))
+        assertEquals(-25, Timeline.offsetAtFraction(Timeline.fraction(-25, 60), 60))
+    }
+
+    @Test
+    fun neighboursGetOtherLanes() {
+        assertEquals(listOf(0, 1, 2, 0), Timeline.lanes(listOf(0f, 10f, 20f, 100f), 44f))
+        assertEquals(listOf(0, 1, 2, 2), Timeline.lanes(listOf(0f, 10f, 20f, 30f), 44f))
+        assertEquals(listOf(0, 0, 0), Timeline.lanes(listOf(0f, 44f, 88f), 44f))
+        assertEquals(emptyList<Int>(), Timeline.lanes(emptyList(), 44f))
+    }
+
+    @Test
     fun signedOffsetsAndMoves() {
         val a = Drafts.newAction("script.lights")
         assertEquals(-10, a.signedOffset)
