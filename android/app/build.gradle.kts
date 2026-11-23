@@ -125,3 +125,11 @@ dependencies {
 
     testImplementation(libs.junit)
 }
+
+configurations.configureEach {
+    if (name == "compileClasspath" || name == "runtimeClasspath"
+            || name.endsWith("CompileClasspath") || name.endsWith("RuntimeClasspath")) {
+        resolutionStrategy.activateDependencyLocking()
+    }
+}
+
