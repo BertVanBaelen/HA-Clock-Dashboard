@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- App: the bedtime checklist no longer lights up the screen at 04:00. The 04:00 reset unticks the list, but the checklist now only opens by itself between the start of the night window and 04:00.
+- App: **Quick alarm** on the night display (widgets open, under the alarm line): a one-time alarm in two steps. Slide along the night (sleep cycles are marked, the next appointment shows how long after waking up it starts), choose sunrise screen, vibration and sound, optionally skip a repeating alarm that rings nearby, and put actions on a line around the alarm. Rings once, then switches itself off.
+- App: Bedroom widget: **Heating presets** (Night, Sleep, Comfort; temperatures in **Settings → Night display → Heating presets**) replace the heating slider, with what the thermostat is doing, and **Heating off** (with undo) next to All lights off.
+- App: new morning screen after Stop: today's weather by the hour and your calendar appointments on one timeline (portrait and landscape), up to three script buttons (**Settings → Night display → Morning buttons**) and Done.
 - App: new design (`docs/design.md`): warm light and dark colors, new icon, alarm timeline with drag-to-place actions, and the list-to-detail animation.
 - App: alarms can be set not to vibrate (Vibrate chip or row in the alarm, "No vibration" in the list). This is kept on the phone, like the sound.
 - App: new night display (landscape bedside clock) with the next alarm and its actions, a Dimmer, and widgets on tap: tomorrow's weather, the morning plan with Skip tomorrow, bedroom (temperature, night light, status), the first calendar event and battery. Choose the Home Assistant entities in **Settings → Night display**; the widgets read them directly from Home Assistant with your login. **Start by itself** now starts when the phone charges on its side inside the time window.

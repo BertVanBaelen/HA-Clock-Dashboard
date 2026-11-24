@@ -14,6 +14,8 @@ import java.time.LocalTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.time.temporal.ChronoUnit
+import kotlin.math.abs
 
 /**
  * Sunrise of an alarm, set per alarm on this phone (docs/design.md, Night display). With the night
@@ -159,10 +161,15 @@ object Checklist {
 
     /**
      * The night display opens on the checklist: inside the night window, something left to tick,
-     * and not put away ("Dim the screen") since the latest 04:00.
+     * and not put away ("Dim the screen") since the latest 04:00. Only in the part of the window
+     * before 04:00: the reset unticks everything, but nobody is going to bed at 05:00.
      */
-    fun opens(now: ZonedDateTime, start: LocalTime, end: LocalTime, open: Int, closedAt: Long?): Boolean =
-        open > 0 && NightWindow.contains(now.toLocalTime(), start, end) && (closedAt == null || closedAt < dayStart(now).toEpochMilli())
+    fun opens(now: ZonedDateTime, start: LocalTime, end: LocalTime, open: Int, closedAt: Long?): Boolean {
+        val day = dayStart(now).toEpochMilli()
+        val startToday = now.toLocalDate().atTime(start).atZone(now.zone)
+        val windowStart = (if (now.isBefore(startToday)) startToday.minusDays(1) else startToday).toInstant().toEpochMilli()
+        return open > 0 && NightWindow.contains(now.toLocalTime(), start, end) && windowStart >= day && (closedAt == null || closedAt < day)
+    }
 }
 
 /**
@@ -226,6 +233,99 @@ object Bedroom {
 
     fun heatFraction(target: Double, range: ClosedFloatingPointRange<Double>): Float =
         ((target - range.start) / (range.endInclusive - range.start)).toFloat().coerceIn(0f, 1f)
+
+    /** Targets of the heating presets Night, Sleep and Comfort until the user changes them in Settings. */
+    val PRESETS = listOf(17.0, 18.5, 19.5)
+
+    /** The preset the thermostat is on (its target); null when it is off or on none of them. */
+    fun preset(s: HaState, presets: List<Double>): Int? {
+        if (s.state == "off") return null
+        val t = target(s) ?: return null
+        return presets.indexOfFirst { abs(it - t) < 0.05 }.takeIf { it >= 0 }
+    }
+
+    /** The mode that turns a thermostat that is off back on: heat, else auto, else the first mode that is not off. */
+    fun onMode(s: HaState): String {
+        val modes = (s.attributes["hvac_modes"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty()
+        return listOf("heat", "auto", "heat_cool").firstOrNull { it in modes } ?: modes.firstOrNull { it != "off" } ?: "heat"
+    }
+
+    /** What the thermostat is doing, from its target and the room temperature it reads. */
+    fun trend(s: HaState): HeatTrend {
+        if (s.state == "off") return HeatTrend.OFF
+        val t = target(s) ?: return HeatTrend.NONE
+        val now = s.number("current_temperature") ?: return HeatTrend.TARGET
+        return when {
+            now < t - 0.05 -> HeatTrend.HEATING
+            now > t + 0.05 -> HeatTrend.COOLING
+            else -> HeatTrend.HOLDING
+        }
+    }
+}
+
+enum class HeatTrend { NONE, OFF, TARGET, HEATING, COOLING, HOLDING }
+
+/**
+ * The Quick alarm's slider (docs/design.md, Night display): a one-time alarm somewhere in the
+ * next hours in 5-minute steps, and its actions on a line from an hour before to half an hour after.
+ */
+object QuickAlarm {
+    const val STEP = 5
+
+    /** How far ahead the slider reaches, in minutes. */
+    const val RANGE = 13 * 60
+    const val STEPS = RANGE / STEP
+
+    /** Falling asleep takes 15 minutes, then sleep cycles of 90. */
+    private const val FALL_ASLEEP = 15
+    private const val CYCLE = 90
+    private const val CYCLES = 7
+
+    /** A repeating alarm this close to the quick one (either side) can be skipped along with it. */
+    const val SKIP_WINDOW = 3 * 60
+
+    /** The actions' line, in minutes around the alarm. */
+    const val OFFSET_FROM = -60
+    const val OFFSET_TO = 30
+    const val DEFAULT_OFFSET = -15
+
+    /** The first choice: the next 5-minute mark after [now]. */
+    fun first(now: ZonedDateTime): ZonedDateTime {
+        val t = now.truncatedTo(ChronoUnit.MINUTES)
+        return t.plusMinutes((STEP - t.minute % STEP).toLong())
+    }
+
+    fun stepAt(fraction: Float): Int = Math.round(fraction.coerceIn(0f, 1f) * STEPS)
+
+    fun fraction(step: Int): Float = step.coerceIn(0, STEPS).toFloat() / STEPS
+
+    /** Minutes from now to the end of each sleep cycle of someone going to sleep now. */
+    val CYCLE_ENDS: List<Int> = (1..CYCLES).map { FALL_ASLEEP + it * CYCLE }
+
+    /** The sleep cycle (1-based) that ends within 10 minutes of [minutes] from now, if any. */
+    fun nearCycle(minutes: Int): Int? = CYCLE_ENDS.indexOfFirst { abs(it - minutes) <= 10 }.takeIf { it >= 0 }?.plus(1)
+
+    /** [offset] if it is free on the line, else the nearest free 5-minute slot. */
+    fun freeSlot(offset: Int, taken: Collection<Int>): Int {
+        for (d in 0..(OFFSET_TO - OFFSET_FROM) step STEP) {
+            for (c in intArrayOf(offset + d, offset - d)) if (c in OFFSET_FROM..OFFSET_TO && c !in taken) return c
+        }
+        return offset
+    }
+
+    /** An action of the quick alarm: before, with or after the alarm by [offset] minutes. */
+    fun action(script: String, offset: Int): DraftAction = when {
+        offset < 0 -> DraftAction(scriptEntityId = script, timing = Timing.BEFORE, offsetMinutes = -offset, delayMinutes = null)
+        offset == 0 -> DraftAction(scriptEntityId = script, timing = Timing.AT, offsetMinutes = null, delayMinutes = null)
+        else -> DraftAction(scriptEntityId = script, timing = Timing.AFTER, offsetMinutes = offset, delayMinutes = null)
+    }
+
+    /** The regular ring to skip along with a quick alarm at [ringAt]: an enabled, repeating alarm ringing close to it. */
+    fun skippable(rings: List<PlannedRing>, alarms: Map<String, Alarm>, ringAt: Long, now: Long): PlannedRing? =
+        rings.filter { !it.snooze && it.ringAt > now }.sortedBy { it.ringAt }.firstOrNull { r ->
+            val a = alarms[r.alarmId]
+            a != null && a.enabled && a.repeating && !a.skipNext && abs(r.ringAt - ringAt) <= SKIP_WINDOW * 60_000L
+        }
 }
 
 object NightPlan {
@@ -233,6 +333,8 @@ object NightPlan {
     const val HOME_ROWS = 3
     /** How many calendars the calendar widget reads. */
     const val CALENDARS = 6
+    /** How many script buttons the morning screen offers. */
+    const val MORNING_BUTTONS = 3
 
     /**
      * The soonest of the normal rings and the occurrences skipped with "Skip next" ([skipped]:
@@ -318,6 +420,9 @@ data class CalendarEvent(
 ) {
     /** Start of a timed event; null for an all-day event. */
     val startsAt: Instant? get() = start.dateTime?.let { runCatching { OffsetDateTime.parse(it).toInstant() }.getOrNull() }
+
+    /** End of a timed event; null for an all-day event. */
+    val endsAt: Instant? get() = end.dateTime?.let { runCatching { OffsetDateTime.parse(it).toInstant() }.getOrNull() }
 }
 
 @Serializable

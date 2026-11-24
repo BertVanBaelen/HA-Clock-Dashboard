@@ -1,6 +1,10 @@
 package alarmclock.vanbaelen.dev.core
 
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -250,6 +254,81 @@ class NightTest {
         assertFalse(Checklist.opens(at.plusMinutes(20), start, end, 2, closed))
         assertFalse(Checklist.opens(at.plusHours(4), start, end, 2, closed))
         assertTrue(Checklist.opens(at.plusDays(1), start, end, 2, closed))
+        // The 04:00 reset unticks the list, but it must not light the screen up again then.
+        assertTrue(Checklist.opens(at.plusHours(5), start, end, 2, null)) // 03:30
+        assertFalse(Checklist.opens(at.plusHours(6), start, end, 2, null)) // 04:30
+        assertFalse(Checklist.opens(at.plusHours(8), start, end, 2, null)) // 06:30, still in the night window
+    }
+
+    private fun thermostat(state: String, target: Double?, now: Double? = null, modes: List<String> = listOf("off", "heat")) = HaState(
+        "climate.bedroom",
+        state,
+        JsonObject(
+            buildMap<String, JsonElement> {
+                target?.let { put("temperature", JsonPrimitive(it)) }
+                now?.let { put("current_temperature", JsonPrimitive(it)) }
+                put("hvac_modes", JsonArray(modes.map { JsonPrimitive(it) }))
+            },
+        ),
+    )
+
+    @Test
+    fun heatingPresetsTrendAndMode() {
+        assertEquals(1, Bedroom.preset(thermostat("heat", 18.5), Bedroom.PRESETS))
+        assertNull(Bedroom.preset(thermostat("off", 18.5), Bedroom.PRESETS))
+        assertNull(Bedroom.preset(thermostat("heat", 21.0), Bedroom.PRESETS))
+        assertEquals(HeatTrend.HEATING, Bedroom.trend(thermostat("heat", 19.5, now = 17.0)))
+        assertEquals(HeatTrend.COOLING, Bedroom.trend(thermostat("heat", 17.0, now = 19.5)))
+        assertEquals(HeatTrend.HOLDING, Bedroom.trend(thermostat("heat", 17.0, now = 17.0)))
+        assertEquals(HeatTrend.OFF, Bedroom.trend(thermostat("off", 17.0, now = 19.5)))
+        assertEquals(HeatTrend.TARGET, Bedroom.trend(thermostat("heat", 17.0)))
+        assertEquals("heat", Bedroom.onMode(thermostat("off", null)))
+        assertEquals("auto", Bedroom.onMode(thermostat("off", null, modes = listOf("off", "auto"))))
+    }
+
+    @Test
+    fun quickAlarmSliderStepsFromTheNextFiveMinutes() {
+        val now = ZonedDateTime.of(2026, 11, 3, 23, 18, 30, 0, zone)
+        assertEquals(ZonedDateTime.of(2026, 11, 3, 23, 20, 0, 0, zone), QuickAlarm.first(now))
+        assertEquals(ZonedDateTime.of(2026, 11, 3, 23, 25, 0, 0, zone), QuickAlarm.first(now.withMinute(20)))
+        assertEquals(0, QuickAlarm.stepAt(0f))
+        assertEquals(QuickAlarm.STEPS, QuickAlarm.stepAt(1f))
+        assertEquals(0.5f, QuickAlarm.fraction(QuickAlarm.STEPS / 2), 0.01f)
+        // 375 minutes is the end of the fourth sleep cycle (15 + 4 × 90); the dot is easier to hit than to miss by 10.
+        assertEquals(4, QuickAlarm.nearCycle(375))
+        assertEquals(4, QuickAlarm.nearCycle(380))
+        assertNull(QuickAlarm.nearCycle(330))
+    }
+
+    @Test
+    fun quickAlarmActionsSitOnTheLine() {
+        assertEquals(-15, QuickAlarm.freeSlot(-15, listOf(0)))
+        assertEquals(-10, QuickAlarm.freeSlot(-15, listOf(-15)))
+        assertEquals(25, QuickAlarm.freeSlot(30, listOf(30)))
+        assertEquals(-55, QuickAlarm.freeSlot(-60, listOf(-60)))
+        val before = QuickAlarm.action("script.a", -30)
+        assertEquals(Timing.BEFORE, before.timing)
+        assertEquals(30, before.offsetMinutes)
+        val with = QuickAlarm.action("script.a", 0)
+        assertEquals(Timing.AT, with.timing)
+        assertNull(with.offsetMinutes)
+        val after = QuickAlarm.action("script.a", 15)
+        assertEquals(Timing.AFTER, after.timing)
+        assertEquals(15, after.offsetMinutes)
+    }
+
+    @Test
+    fun quickAlarmCanSkipANearbyRepeatingAlarm() {
+        val now = ringAt - 8 * 3_600_000L
+        val workday = Alarm(id = "w", time = "06:30", repeatDays = listOf("mon", "tue", "wed", "thu", "fri"))
+        val once = Alarm(id = "o", time = "06:30")
+        val alarms = mapOf("w" to workday, "o" to once)
+        val rings = listOf(ring(alarmId = "w"), ring(alarmId = "o", at = ringAt + 60_000L))
+        // A quick alarm an hour later: the workday alarm is close; the one-time alarm is not repeating.
+        assertEquals("w", QuickAlarm.skippable(rings, alarms, ringAt + 3_600_000L, now)!!.alarmId)
+        // Five hours later is too far, and an alarm that is already skipped is not offered again.
+        assertNull(QuickAlarm.skippable(rings, alarms, ringAt + 5 * 3_600_000L, now))
+        assertNull(QuickAlarm.skippable(rings, alarms + ("w" to workday.copy(skipNext = true)), ringAt + 3_600_000L, now))
     }
 
     @Test

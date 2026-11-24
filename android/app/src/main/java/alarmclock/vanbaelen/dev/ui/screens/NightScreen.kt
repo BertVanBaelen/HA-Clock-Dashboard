@@ -3,7 +3,10 @@ package alarmclock.vanbaelen.dev.ui.screens
 import alarmclock.vanbaelen.dev.App
 import alarmclock.vanbaelen.dev.R
 import alarmclock.vanbaelen.dev.core.Alarm
+import alarmclock.vanbaelen.dev.core.Bedroom
 import alarmclock.vanbaelen.dev.core.Checklist
+import alarmclock.vanbaelen.dev.core.Draft
+import alarmclock.vanbaelen.dev.core.HaState
 import alarmclock.vanbaelen.dev.core.NightAlarm
 import alarmclock.vanbaelen.dev.core.NightBrightness
 import alarmclock.vanbaelen.dev.core.NightPlan
@@ -21,7 +24,9 @@ import alarmclock.vanbaelen.dev.ui.AppIcons
 import alarmclock.vanbaelen.dev.ui.Format
 import alarmclock.vanbaelen.dev.ui.LocalAppColors
 import alarmclock.vanbaelen.dev.ui.MainViewModel
+import alarmclock.vanbaelen.dev.ui.NightBright
 import alarmclock.vanbaelen.dev.ui.NightGlow
+import alarmclock.vanbaelen.dev.ui.NightSelected
 import alarmclock.vanbaelen.dev.ui.NightTokens
 import alarmclock.vanbaelen.dev.ui.SuperdimGlow
 import alarmclock.vanbaelen.dev.ui.SuperdimInk
@@ -65,6 +70,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -121,6 +127,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -141,8 +148,11 @@ object NightDisplay {
     val checklistClosedAt = MutableStateFlow<Long?>(null)
 }
 
-/** Resting clock, widgets open, choosing widgets, display settings, or the checklist (docs/design.md, Night display). */
-enum class NightMode { IDLE, WIDGETS, EDIT, DISPLAY, CHECKLIST }
+/** Resting clock, widgets open, choosing widgets, display settings, the checklist, or the quick alarm (docs/design.md, Night display). */
+enum class NightMode { IDLE, WIDGETS, EDIT, DISPLAY, CHECKLIST, QUICK }
+
+/** A quick alarm that was saved, and the repeating alarm that was skipped along with it (for the undo). */
+class QuickSet(val alarmId: String, val skipped: String?)
 
 class NightViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as App
@@ -162,14 +172,14 @@ class NightViewModel(application: Application) : AndroidViewModel(application) {
             NightMode.IDLE -> NightMode.WIDGETS
             NightMode.WIDGETS -> NightMode.IDLE
             NightMode.EDIT -> NightMode.WIDGETS
-            NightMode.DISPLAY, NightMode.CHECKLIST -> m
+            NightMode.DISPLAY, NightMode.CHECKLIST, NightMode.QUICK -> m
         }
     }
 
     /** A swipe up shows the widgets, a swipe down hides them or puts the checklist away. */
     fun swipe(up: Boolean) {
         when {
-            mode.value == NightMode.DISPLAY -> Unit
+            mode.value == NightMode.DISPLAY || mode.value == NightMode.QUICK -> Unit
             up -> mode.value = NightMode.WIDGETS
             mode.value == NightMode.CHECKLIST -> closeChecklist()
             else -> mode.value = NightMode.IDLE
@@ -200,6 +210,61 @@ class NightViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setHeating(entityId: String, target: Double) {
         viewModelScope.launch { app.night.setHeating(entityId, target)?.let { flash.value = Format.problem(app, it) } }
+    }
+
+    /** A heating preset; a thermostat that is off is turned on first. */
+    fun setHeatingPreset(heating: HaState, target: Double) {
+        viewModelScope.launch {
+            val problem = if (heating.state == "off") app.night.setHeatingMode(heating.entityId, Bedroom.onMode(heating)) else null
+            (problem ?: app.night.setHeating(heating.entityId, target))?.let { flash.value = Format.problem(app, it) }
+        }
+    }
+
+    /** The mode the thermostat was in before "Heating off", for the undo. */
+    private var heatingWas: String? = null
+
+    /** "Heating off", or back on in the mode it was in. */
+    fun toggleHeatingOff(heating: HaState) {
+        viewModelScope.launch {
+            val problem = if (heating.state == "off") {
+                app.night.setHeatingMode(heating.entityId, heatingWas ?: Bedroom.onMode(heating))
+            } else {
+                heatingWas = heating.state
+                app.night.setHeatingMode(heating.entityId, "off")
+            }
+            problem?.let { flash.value = Format.problem(app, it) }
+        }
+    }
+
+    /** What the quick alarm screen needs: the rings that are planned and the alarms they belong to. */
+    val scheduled = app.engine.scheduled
+    val alarms: StateFlow<Map<String, Alarm>> = app.repository.alarms
+        .map { list -> list.associate { it.alarm.id to it.alarm } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    /**
+     * Saves the quick alarm: a one-time alarm with the actions of [draft] and this phone's sound,
+     * vibration and sunrise. With [skip] (a repeating alarm's id) that alarm's next ring is skipped
+     * too. Null when saving failed (the reason is flashed).
+     */
+    suspend fun saveQuick(draft: Draft, sound: String?, vibrate: Boolean, sunrise: Boolean, skip: String?): QuickSet? {
+        val id = when (val result = app.repository.save(draft)) {
+            is SaveResult.Saved -> result.alarm.id
+            is SaveResult.Queued -> result.alarmId
+            is SaveResult.Failed -> {
+                flash.value = Format.problem(app, result.problem, result.message)
+                return null
+            }
+        }
+        app.repository.setLocal(id, sound, vibrate, if (sunrise) Sunrise.DEFAULT_MINUTES else 0, 100)
+        val skipped = skip?.let { alarmId -> alarms.value[alarmId] }?.takeIf { app.repository.setSkip(it, true) !is SaveResult.Failed }?.id
+        return QuickSet(id, skipped)
+    }
+
+    /** Undo of [saveQuick]: the quick alarm is deleted and the skipped alarm rings again. */
+    suspend fun undoQuick(set: QuickSet) {
+        app.repository.effectiveAlarms().firstOrNull { it.alarm.id == set.alarmId }?.let { app.repository.delete(it.alarm) }
+        set.skipped?.let { id -> app.repository.effectiveAlarms().firstOrNull { it.alarm.id == id }?.let { app.repository.setSkip(it.alarm, false) } }
     }
 
     /** All lights off, or its undo while the button offers it. */
@@ -361,7 +426,7 @@ fun NightScreen(vm: MainViewModel, onExit: () -> Unit, onRinging: () -> Unit, on
     }
     BackHandler {
         when (mode) {
-            NightMode.EDIT -> night.mode.value = NightMode.WIDGETS
+            NightMode.EDIT, NightMode.QUICK -> night.mode.value = NightMode.WIDGETS
             NightMode.DISPLAY -> night.mode.value = NightMode.EDIT
             else -> onExit()
         }
@@ -550,7 +615,7 @@ private fun NightContent(
     val idleA by animateFloatAsState(if (idle) 1f else 0f, tween(300), label = "idle")
     // Off until tapped: the resting clock fades in on a tap and slowly out again.
     val restA by animateFloatAsState(if (!dark || peeking) 1f else 0f, tween(if (!dark || peeking) 400 else 1_400), label = "rest")
-    val clockA by animateFloatAsState(if (mode == NightMode.DISPLAY) 0f else 1f, tween(300), label = "clockShown")
+    val clockA by animateFloatAsState(if (mode == NightMode.DISPLAY || mode == NightMode.QUICK) 0f else 1f, tween(300), label = "clockShown")
     val sideA by animateFloatAsState(if (widgets) 1f else 0f, tween(350, delayMillis = if (widgets) 200 else 0), label = "side")
     val cardsA by animateFloatAsState(if (mode == NightMode.WIDGETS) 1f else 0f, tween(350, delayMillis = if (mode == NightMode.WIDGETS) 150 else 0), label = "cards")
     val editA by animateFloatAsState(if (mode == NightMode.EDIT) 1f else 0f, tween(300), label = "edit")
@@ -667,6 +732,7 @@ private fun NightContent(
             Text(checklistIntro(settings.nightStart), style = nightText(f, 13).copy(lineHeight = f.sp(19.5f)), color = t.muted)
         }
         if (widgets) {
+            QuickAlarmButton(f, Modifier.offset(x = f.dp(24), y = f.dp(176)).graphicsLayer { alpha = sideA }) { night.mode.value = NightMode.QUICK }
             // Resolved while composing, so they follow a configuration change (lint).
             val dndAccess = stringResource(R.string.night_dnd_access)
             val superdimFlash = stringResource(R.string.night_superdim_flash)
@@ -702,7 +768,7 @@ private fun NightContent(
                 if (next == NightBrightness.SUPERDIM) night.flash.value = superdimFlash
             }
         }
-        if (!idle && mode != NightMode.CHECKLIST) {
+        if (!idle && mode != NightMode.CHECKLIST && mode != NightMode.QUICK) {
             Row(
                 Modifier.align(Alignment.TopEnd).offset(x = -f.dp(16), y = f.dp(10)),
                 horizontalArrangement = Arrangement.spacedBy(f.dp(6)),
@@ -777,6 +843,9 @@ private fun NightContent(
                     },
             )
         }
+        if (mode == NightMode.QUICK) {
+            QuickAlarmPanel(f, night, settings, now, zone) { toClock -> night.mode.value = if (toClock) NightMode.IDLE else NightMode.WIDGETS }
+        }
         Text(
             flash ?: "",
             style = nightText(f, 14),
@@ -784,6 +853,32 @@ private fun NightContent(
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().offset(y = f.dp(356)).graphicsLayer { alpha = if (flash != null) 1f else 0f },
         )
+    }
+}
+
+/** "Quick alarm" under the small clock: a one-time alarm in two steps. */
+@Composable
+private fun QuickAlarmButton(f: NightFrame, modifier: Modifier, onClick: () -> Unit) {
+    val t = tokens
+    val shape = RoundedCornerShape(f.dp(36))
+    Row(
+        modifier
+            .width(f.dp(212))
+            .heightIn(min = maxOf(48.dp, f.dp(72)))
+            .clip(shape)
+            .border(1.dp, t.accent, shape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(start = f.dp(10), end = f.dp(14), top = f.dp(10), bottom = f.dp(10)),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(f.dp(12)),
+    ) {
+        Box(Modifier.size(f.dp(50)).clip(CircleShape).background(NightSelected), contentAlignment = Alignment.Center) {
+            Icon(AppIcons.plus, null, tint = t.accent, modifier = Modifier.size(f.dp(24)))
+        }
+        Column {
+            Text(stringResource(R.string.quick_alarm), style = nightText(f, 16, FontWeight.SemiBold), color = NightBright)
+            Text(stringResource(R.string.quick_alarm_sub), style = nightText(f, 12), color = t.muted)
+        }
     }
 }
 
@@ -824,7 +919,7 @@ private fun TimelineLabel(f: NightFrame, text: String, fraction: Float, accent: 
 }
 
 /** Places the element with its horizontal centre at [x] and its top at [y]. */
-private fun Modifier.centeredAt(x: Dp, y: Dp): Modifier = layout { measurable, constraints ->
+internal fun Modifier.centeredAt(x: Dp, y: Dp): Modifier = layout { measurable, constraints ->
     val placeable = measurable.measure(constraints.copy(minWidth = 0))
     layout(placeable.width, placeable.height) { placeable.place(x.roundToPx() - placeable.width / 2, y.roundToPx()) }
 }
