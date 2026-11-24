@@ -457,7 +457,8 @@ private fun Morning(ring: PlannedRing, stoppedAt: Long, onBrightness: (Float) ->
     val day = remember(weather, agenda) { buildDay(weather, agenda, stoppedAt, zone) }
     val sel = picked.takeIf { it in day.events.indices } ?: day.next
     val subline = stringResource(R.string.morning_subline, Format.longDate(context, stopped.toLocalDate()), Format.time(context, stopped.toLocalTime()))
-    val nextAlarm = app.engine.scheduled.value.filter { !it.snooze && it.ringAt > stoppedAt }.minByOrNull { it.ringAt }
+    val scheduled by app.engine.scheduled.collectAsState()
+    val nextAlarm = scheduled.filter { !it.snooze && it.ringAt > stoppedAt }.minByOrNull { it.ringAt }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(t.bg).safeDrawingPadding()) {
         val wide = maxWidth > maxHeight
