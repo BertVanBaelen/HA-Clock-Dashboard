@@ -3,6 +3,7 @@ package alarmclock.vanbaelen.dev.ui.screens
 import alarmclock.vanbaelen.dev.R
 import alarmclock.vanbaelen.dev.core.Bedroom
 import alarmclock.vanbaelen.dev.core.HaState
+import alarmclock.vanbaelen.dev.core.HeatTrend
 import alarmclock.vanbaelen.dev.core.NightAlarm
 import alarmclock.vanbaelen.dev.core.NightWidget
 import alarmclock.vanbaelen.dev.core.Timing
@@ -15,6 +16,7 @@ import alarmclock.vanbaelen.dev.ui.AlarmItem
 import alarmclock.vanbaelen.dev.ui.AppIcons
 import alarmclock.vanbaelen.dev.ui.Format
 import alarmclock.vanbaelen.dev.ui.NightBright
+import alarmclock.vanbaelen.dev.ui.NightSelected
 import alarmclock.vanbaelen.dev.ui.tokens
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -43,6 +45,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -73,8 +76,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
@@ -140,14 +145,14 @@ internal fun NightWidgets(
                 NightWidget.HOME -> WidgetCard(
                     f,
                     stringResource(R.string.widget_home_title),
-                    width = 330,
+                    width = 392,
                     status = home?.rows?.takeIf { it.isNotEmpty() }?.joinToString(" · ") { "${it.name} ${Format.entityState(context, it)}" },
                 ) {
                     val info = home
                     when {
                         !settings.hasBedroom -> SetupHint(f, stringResource(R.string.widget_home_setup), onSettings)
                         info == null -> Muted(f, waiting)
-                        else -> BedroomBody(f, night, info)
+                        else -> BedroomBody(f, night, info, settings.heatPresets)
                     }
                 }
                 NightWidget.CALENDAR -> WidgetCard(f, stringResource(R.string.widget_calendar_title)) {
@@ -241,19 +246,22 @@ private val HeatFill = Color(0xFF6E2A12)
 internal val AllOffLine = Color(0xFF6A4A2C)
 private val AllOffDone = Color(0xFF1A1209)
 
-/** Night lamp and heating as bars to slide up and down, then "All lights off" (with undo) at the bottom. */
+/**
+ * The night lamp as a bar to slide up and down beside the heating presets, then "All lights off"
+ * and "Heating off" (both with undo) at the bottom.
+ */
 @Composable
-private fun ColumnScope.BedroomBody(f: NightFrame, night: NightViewModel, info: HomeInfo) {
+private fun ColumnScope.BedroomBody(f: NightFrame, night: NightViewModel, info: HomeInfo, presets: List<Double>) {
     val context = LocalContext.current
     val lightsOff by night.lightsOff.collectAsState()
+    val heating = info.heating
+    val room = info.temperature
     Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(f.dp(14))) {
-        info.lamp?.let { LampBar(f, night, it, Modifier.weight(1f)) }
-        val heating = info.heating
-        val room = info.temperature
+        info.lamp?.let { LampBar(f, night, it, if (heating != null) Modifier.width(f.dp(92)) else Modifier.weight(1f)) }
         if (heating != null) {
             // The room now: the chosen temperature sensor, else the thermostat's own reading.
             val now = room?.let { roomTemperature(context, it) } ?: heating.number("current_temperature")?.let { Format.degreesFine(context, it) }
-            HeatingBar(f, night, heating, now, Modifier.weight(1f))
+            HeatPresets(f, night, heating, presets, now, Modifier.weight(1f))
         } else if (room != null) {
             SlideBar(
                 f,
@@ -270,7 +278,28 @@ private fun ColumnScope.BedroomBody(f: NightFrame, night: NightViewModel, info: 
             )
         }
     }
-    AllOffButton(f, undo = lightsOff != null) { night.toggleAllOff(info.lamp?.entityId) }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(f.dp(10))) {
+        val undo = lightsOff != null
+        BedroomButton(
+            f,
+            label = stringResource(if (undo) R.string.bedroom_lights_are_off else R.string.bedroom_all_off),
+            sub = if (undo) stringResource(R.string.tap_to_undo) else null,
+            icon = AppIcons.lightsOff,
+            active = undo,
+            modifier = Modifier.weight(1f),
+        ) { night.toggleAllOff(info.lamp?.entityId) }
+        if (heating != null) {
+            val off = heating.state == "off"
+            BedroomButton(
+                f,
+                label = stringResource(if (off) R.string.heat_is_off else R.string.heat_off),
+                sub = if (off) stringResource(R.string.tap_to_undo) else null,
+                icon = AppIcons.heatOff,
+                active = off,
+                modifier = Modifier.weight(1f),
+            ) { night.toggleHeatingOff(heating) }
+        }
+    }
 }
 
 @Composable
@@ -302,31 +331,63 @@ private fun LampBar(f: NightFrame, night: NightViewModel, lamp: HaState, modifie
     )
 }
 
-/** The thermostat's target (the number in the bar) and the room now (beside the name). */
+/** What the thermostat does now, and its three presets (Night, Sleep, Comfort) to tap. */
 @Composable
-private fun HeatingBar(f: NightFrame, night: NightViewModel, heating: HaState, now: String?, modifier: Modifier) {
+private fun HeatPresets(f: NightFrame, night: NightViewModel, heating: HaState, presets: List<Double>, now: String?, modifier: Modifier) {
     val context = LocalContext.current
-    val target = Bedroom.target(heating)
-    val range = Bedroom.heatRange(heating, target)
-    val step = Bedroom.step(heating)
-    var shown by remember(heating) { mutableStateOf(target) }
-    SlideBar(
-        f,
-        name = if (now != null) stringResource(R.string.bedroom_heating_now, now) else stringResource(R.string.bedroom_heating),
-        value = shown?.let { Format.degreesFine(context, it) } ?: Format.entityState(context, heating),
-        icon = AppIcons.thermometer,
-        fraction = shown?.let { Bedroom.heatFraction(it, range) } ?: 0f,
-        fill = HeatFill,
-        fillAlpha = 1f,
-        steps = ((range.endInclusive - range.start) / step).roundToInt() - 1,
-        enabled = heating.available && target != null,
-        onSlide = { fraction ->
-            val v = Bedroom.heatAt(fraction, range, step)
-            (v != shown).also { shown = v }
-        },
-        onDone = { shown?.let { if (it != target) night.setHeating(heating.entityId, it) } },
-        modifier = modifier,
-    )
+    val t = tokens
+    val selected = Bedroom.preset(heating, presets)
+    val goal = Bedroom.target(heating)?.let { Format.degreesFine(context, it) }.orEmpty()
+    val status = when (Bedroom.trend(heating)) {
+        HeatTrend.OFF -> if (now != null) stringResource(R.string.heat_status_off, now) else stringResource(R.string.state_off)
+        HeatTrend.HEATING -> stringResource(R.string.heat_status_heating, goal)
+        HeatTrend.COOLING -> if (now != null) stringResource(R.string.heat_status_cooling, now, goal) else stringResource(R.string.heat_status_target, goal)
+        HeatTrend.HOLDING -> if (now != null) stringResource(R.string.heat_status_holding, now) else stringResource(R.string.heat_status_target, goal)
+        HeatTrend.TARGET -> stringResource(R.string.heat_status_target, goal)
+        HeatTrend.NONE -> Format.entityState(context, heating)
+    }
+    val names = listOf(R.string.heat_preset_night, R.string.heat_preset_sleep, R.string.heat_preset_comfort)
+    val icons = listOf(AppIcons.moon, AppIcons.bed, AppIcons.home)
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(f.dp(8))) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.bedroom_heating), style = nightText(f, 13), color = t.ink)
+            Text(
+                status,
+                style = nightText(f, 12),
+                color = t.muted,
+                textAlign = TextAlign.End,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(start = f.dp(8)).semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(f.dp(8))) {
+            presets.forEachIndexed { i, temp ->
+                val on = i == selected
+                val shape = RoundedCornerShape(f.dp(18))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .clip(shape)
+                        .background(if (on) NightSelected else Color.Transparent)
+                        .border(1.dp, if (on) t.accent else t.line, shape)
+                        .selectable(selected = on, role = Role.RadioButton) { night.setHeatingPreset(heating, temp) }
+                        .padding(start = f.dp(14), end = f.dp(16)),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(f.dp(10)),
+                ) {
+                    Icon(icons[i], null, tint = if (on) NightBright else t.ink, modifier = Modifier.size(f.dp(18)))
+                    Text(stringResource(names[i]), style = nightText(f, 14, FontWeight.Medium), color = if (on) NightBright else t.ink, modifier = Modifier.weight(1f))
+                    Text(
+                        if (temp % 1.0 == 0.0) "${temp.toInt()}°" else Format.degreesFine(context, temp),
+                        style = nightText(f, 26, FontWeight.ExtraLight).copy(lineHeight = f.sp(26)),
+                        color = if (on) NightBright else t.ink,
+                    )
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -431,26 +492,29 @@ private fun SlideBar(
     }
 }
 
-/** Turns off every light; for a few seconds after, it reads "tap to undo". */
+/** "All lights off" or "Heating off": a pill that reads "Tap to undo" while it is done. */
 @Composable
-private fun AllOffButton(f: NightFrame, undo: Boolean, onClick: () -> Unit) {
+private fun BedroomButton(f: NightFrame, label: String, sub: String?, icon: ImageVector, active: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val t = tokens
-    val shape = RoundedCornerShape(f.dp(25))
-    val bg by animateColorAsState(if (undo) AllOffDone else Color.Transparent, tween(250), label = "allOffBg")
-    val fg by animateColorAsState(if (undo) t.muted else NightBright, tween(250), label = "allOffFg")
+    val shape = RoundedCornerShape(f.dp(26))
+    val bg by animateColorAsState(if (active) AllOffDone else Color.Transparent, tween(250), label = "bedroomButtonBg")
+    val fg by animateColorAsState(if (active) t.muted else NightBright, tween(250), label = "bedroomButtonFg")
     Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = maxOf(48.dp, f.dp(50)))
+        modifier
+            .heightIn(min = maxOf(48.dp, f.dp(52)))
             .clip(shape)
             .background(bg)
-            .border(1.dp, if (undo) t.line else AllOffLine, shape)
-            .clickable(role = Role.Button, onClick = onClick),
+            .border(1.dp, if (active) t.line else AllOffLine, shape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = f.dp(8)),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(f.dp(8), Alignment.CenterHorizontally),
     ) {
-        Icon(AppIcons.lightsOff, null, tint = fg, modifier = Modifier.size(f.dp(18)))
-        Text(stringResource(if (undo) R.string.bedroom_all_off_undo else R.string.bedroom_all_off), style = nightText(f, 15, FontWeight.Medium), color = fg)
+        Icon(icon, null, tint = fg, modifier = Modifier.size(f.dp(18)))
+        Column {
+            Text(label, style = nightText(f, 15, FontWeight.Medium), color = fg)
+            if (sub != null) Text(sub, style = nightText(f, 11), color = fg)
+        }
     }
 }
 
@@ -682,7 +746,7 @@ private fun ChoiceTile(
 
 /** The switch drawing only (its row is the control): a 38 × 24 track and an 18 knob. */
 @Composable
-private fun SwitchMark(f: NightFrame, checked: Boolean) {
+internal fun SwitchMark(f: NightFrame, checked: Boolean) {
     val t = tokens
     val track by animateColorAsState(if (checked) t.accent else t.off, tween(250), label = "track")
     val knob by animateColorAsState(if (checked) t.onAccent else t.knob, tween(250), label = "knob")

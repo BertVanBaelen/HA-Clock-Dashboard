@@ -44,7 +44,8 @@ enum class EntitySlot(@StringRes val title: Int, val max: Int) {
     NIGHT_LIGHT(R.string.entity_night_light, 1),
     HEATING(R.string.entity_heating, 1),
     ROOM_TEMPERATURE(R.string.entity_room_temperature, 1),
-    HOME(R.string.entity_home, NightPlan.HOME_ROWS);
+    HOME(R.string.entity_home, NightPlan.HOME_ROWS),
+    MORNING_BUTTONS(R.string.entity_morning_buttons, NightPlan.MORNING_BUTTONS);
 
     fun read(s: LocalSettings): List<String> = when (this) {
         WEATHER -> listOfNotNull(s.weatherEntity)
@@ -53,6 +54,7 @@ enum class EntitySlot(@StringRes val title: Int, val max: Int) {
         HEATING -> listOfNotNull(s.heatingEntity)
         ROOM_TEMPERATURE -> listOfNotNull(s.roomTemperatureEntity)
         HOME -> s.homeEntities
+        MORNING_BUTTONS -> s.morningButtons
     }
 
     fun write(s: LocalSettings, ids: List<String>): LocalSettings = when (this) {
@@ -62,6 +64,7 @@ enum class EntitySlot(@StringRes val title: Int, val max: Int) {
         HEATING -> s.copy(heatingEntity = ids.firstOrNull())
         ROOM_TEMPERATURE -> s.copy(roomTemperatureEntity = ids.firstOrNull())
         HOME -> s.copy(homeEntities = ids.take(max))
+        MORNING_BUTTONS -> s.copy(morningButtons = ids.take(max))
     }
 
     fun accepts(e: HaState): Boolean = when (this) {
@@ -71,6 +74,7 @@ enum class EntitySlot(@StringRes val title: Int, val max: Int) {
         HEATING -> e.domain == "climate"
         ROOM_TEMPERATURE -> e.domain == "climate" || (e.domain == "sensor" && e.text("device_class") == "temperature")
         HOME -> e.domain in setOf("light", "switch", "lock", "climate", "cover", "binary_sensor", "fan", "input_boolean", "sensor")
+        MORNING_BUTTONS -> e.domain == "script"
     }
 }
 

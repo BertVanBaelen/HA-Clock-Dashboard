@@ -156,6 +156,29 @@ class NightData(private val app: App) {
         problemOf(e)
     }
 
+    /** Sets the thermostat's mode: "off", or the mode that turns heating on. */
+    suspend fun setHeatingMode(entityId: String, mode: String): Problem? = try {
+        app.ha.call("climate", "set_hvac_mode", entityId, mapOf("hvac_mode" to mode))
+        reread(entityId)
+        null
+    } catch (e: Exception) {
+        problemOf(e)
+    }
+
+    /** Runs a script (a morning button). */
+    suspend fun runScript(entityId: String): Problem? = try {
+        app.ha.call("script", "turn_on", entityId)
+        null
+    } catch (e: Exception) {
+        problemOf(e)
+    }
+
+    /** Timed events of [date] across the chosen calendars, for the morning screen; null without calendars or when they all fail. */
+    suspend fun agendaOf(date: LocalDate, zone: ZoneId): AgendaInfo? = mutex.withLock {
+        val ids = app.prefs.settings.value.calendarEntities.takeIf { it.isNotEmpty() } ?: return@withLock null
+        runCatching { readAgenda(ids, date, zone) }.getOrNull()
+    }
+
     /**
      * "All lights off": every light that is on, and the night lamp when it is a switch. Returns
      * what was on, for the undo.

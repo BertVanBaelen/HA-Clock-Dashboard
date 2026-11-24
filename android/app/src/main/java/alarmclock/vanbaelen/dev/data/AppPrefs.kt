@@ -1,5 +1,6 @@
 package alarmclock.vanbaelen.dev.data
 
+import alarmclock.vanbaelen.dev.core.Bedroom
 import alarmclock.vanbaelen.dev.core.ClockSize
 import alarmclock.vanbaelen.dev.core.HaJson
 import alarmclock.vanbaelen.dev.core.NightBrightness
@@ -50,6 +51,10 @@ data class LocalSettings(
     val checklistShow: Boolean = true,
     val checklistReset: Boolean = true,
     val checklistSync: Boolean = true,
+    /** Targets of the Bedroom widget's heating presets Night, Sleep and Comfort. */
+    val heatPresets: List<Double> = Bedroom.PRESETS,
+    /** Scripts the morning screen offers as buttons (up to three). */
+    val morningButtons: List<String> = emptyList(),
 ) {
     /** The Bedroom widget has at least one entity to show. */
     val hasBedroom: Boolean
@@ -115,6 +120,8 @@ class AppPrefs(context: Context) {
         checklistShow = prefs.getBoolean("checklist_show", true),
         checklistReset = prefs.getBoolean("checklist_reset", true),
         checklistSync = prefs.getBoolean("checklist_sync", true),
+        heatPresets = list(prefs.getString("heat_presets", null)).mapNotNull { it.toDoubleOrNull() }.takeIf { it.size == Bedroom.PRESETS.size } ?: Bedroom.PRESETS,
+        morningButtons = list(prefs.getString("morning_buttons", null)),
     )
 
     /** When the checklist was last unticked (or first read); null before that. */
@@ -172,6 +179,8 @@ class AppPrefs(context: Context) {
             .putBoolean("checklist_show", s.checklistShow)
             .putBoolean("checklist_reset", s.checklistReset)
             .putBoolean("checklist_sync", s.checklistSync)
+            .putString("heat_presets", s.heatPresets.joinToString(","))
+            .putString("morning_buttons", s.morningButtons.joinToString(","))
             .commit()
         _settings.value = s
     }

@@ -108,6 +108,7 @@ fun SettingsScreen(vm: MainViewModel, nav: NavHostController) {
     var editTime by remember { mutableStateOf<String?>(null) }
     var updateCheck by remember { mutableStateOf<UpdateCheck?>(null) }
     var pickEntity by remember { mutableStateOf<EntitySlot?>(null) }
+    var editPresets by remember { mutableStateOf(false) }
     // Saveable so the open category, highlighted row and query outlive leaving the screen and back.
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
     var highlight by rememberSaveable { mutableStateOf<String?>(null) }
@@ -227,7 +228,10 @@ fun SettingsScreen(vm: MainViewModel, nav: NavHostController) {
                     stringResource(R.string.settings_group_widgets),
                     EntitySlot.entries.map { slot ->
                         SettingItem.Value(stringResource(slot.title), slot.read(settings).joinToString(", ").ifEmpty { notSet }) { pickEntity = slot }
-                    },
+                    } + SettingItem.Value(
+                        stringResource(R.string.heat_presets),
+                        settings.heatPresets.joinToString(" · ") { Format.degreesFine(context, it) },
+                    ) { editPresets = true },
                     note = stringResource(R.string.widgets_entities_intro),
                 ),
             ),
@@ -412,6 +416,17 @@ fun SettingsScreen(vm: MainViewModel, nav: NavHostController) {
         )
     }
 
+    if (editPresets) {
+        HeatPresetsDialog(
+            presets = settings.heatPresets,
+            onDismiss = { editPresets = false },
+            onSave = { values ->
+                app.prefs.updateSettings { it.copy(heatPresets = values) }
+                editPresets = false
+            },
+        )
+    }
+
     if (confirmLogout) {
         AlertDialog(
             onDismissRequest = { confirmLogout = false },
@@ -426,6 +441,35 @@ fun SettingsScreen(vm: MainViewModel, nav: NavHostController) {
             dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
+}
+
+/** The three heating presets' temperatures, in half degrees. */
+@Composable
+private fun HeatPresetsDialog(presets: List<Double>, onDismiss: () -> Unit, onSave: (List<Double>) -> Unit) {
+    val context = LocalContext.current
+    var values by remember { mutableStateOf(presets) }
+    val names = listOf(R.string.heat_preset_night, R.string.heat_preset_sleep, R.string.heat_preset_comfort)
+    fun change(i: Int, delta: Double) {
+        values = values.mapIndexed { j, v -> if (j == i) (v + delta).coerceIn(5.0, 30.0) else v }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.heat_presets)) },
+        text = {
+            Column {
+                values.forEachIndexed { i, v ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(names[i]), Modifier.weight(1f))
+                        TextButton(onClick = { change(i, -0.5) }) { Text("−") }
+                        Text(Format.degreesFine(context, v))
+                        TextButton(onClick = { change(i, 0.5) }) { Text("+") }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(values) }) { Text(stringResource(R.string.done)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
 }
 
 private class SettingsCategory(val id: String, val name: String, val icon: ImageVector, val summary: String, val intro: String, val groups: List<SettingsGroup>)
